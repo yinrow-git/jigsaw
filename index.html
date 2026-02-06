@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jigsaw Puzzle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div id="config-overlay" class="hidden">
+      <div id="config-panel">
+        <h3>Settings</h3>
+        <div class="config-group">
+          <label>Grid Size</label>
+          <div class="config-options" id="size-options">
+            <button data-size="3" class="active">3️⃣</button>
+            <button data-size="4">4️⃣</button>
+            <button data-size="5">5️⃣</button>
+          </div>
+        </div>
+        <button id="config-apply-btn">Apply</button>
+      </div>
+    </div>
+
+    <div id="game-section">
+      <div class="game-layout">
+        <div id="puzzle-container">
+          <div id="puzzle-board"></div>
+          <div id="win-overlay" class="hidden">
+            <div class="win-content">
+              <h2>Congratulations!</h2>
+              <a href="#" id="play-again-btn">Play again</a>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="new-game-btn">🔄</button>
+          <button id="config-btn">⚙️</button>
+          <button id="hint-btn">💡</button>
+          <button id="share-btn">🔗</button>
+          <span id="points-display">💎 0</span>
+        </div>
+      </div>
+      <div id="hint-container" class="hidden">
+        <img id="hint-image" alt="Hint">
+      </div>
+    </div>
+  </div>
+
+  <script src="puzzle.js"></script>
+</body>
+</html>
