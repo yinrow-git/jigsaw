@@ -55,7 +55,8 @@ app.get('/api/puzzles', (req, res) => {
 // API endpoint to get next unseen puzzle for user
 app.get('/api/next-puzzle', (req, res) => {
   let userId = req.cookies.puzzleUserId;
-  const currentPuzzle = req.query.current;
+  // Decode in case of double-encoding
+  const currentPuzzle = req.query.current ? decodeURIComponent(req.query.current) : null;
 
   // Create new user ID if not exists
   if (!userId) {
