@@ -55,8 +55,8 @@ app.get('/api/puzzles', (req, res) => {
 // API endpoint to get next unseen puzzle for user
 app.get('/api/next-puzzle', (req, res) => {
   let userId = req.cookies.puzzleUserId;
-  // Decode in case of double-encoding
-  const currentPuzzle = req.query.current ? decodeURIComponent(req.query.current) : null;
+  // Use index to avoid Unicode encoding issues with filenames
+  const currentIndex = req.query.currentIndex !== undefined ? parseInt(req.query.currentIndex) : -1;
 
   // Create new user ID if not exists
   if (!userId) {
@@ -80,29 +80,24 @@ app.get('/api/next-puzzle', (req, res) => {
 
   const progress = userProgress.get(userId);
 
-  // Find unseen puzzles (excluding current)
+  // Find unseen puzzles (excluding current by index)
   let unseenPuzzles = puzzles
     .map((p, i) => ({ puzzle: p, index: i }))
-    .filter(item => !progress.seenPuzzles.has(item.puzzle) && item.puzzle !== currentPuzzle);
-
-  console.log('Current puzzle:', currentPuzzle);
-  console.log('Available puzzles:', puzzles);
-  console.log('Unseen puzzles (excluding current):', unseenPuzzles.map(u => u.puzzle));
+    .filter(item => !progress.seenPuzzles.has(item.puzzle) && item.index !== currentIndex);
 
   // If no unseen puzzles, reset and get all except current
   if (unseenPuzzles.length === 0) {
     progress.seenPuzzles.clear();
     unseenPuzzles = puzzles
       .map((p, i) => ({ puzzle: p, index: i }))
-      .filter(item => item.puzzle !== currentPuzzle);
+      .filter(item => item.index !== currentIndex);
   }
 
   // If still no puzzles (only one puzzle exists), return current
   if (unseenPuzzles.length === 0) {
-    const idx = puzzles.indexOf(currentPuzzle);
     return res.json({
-      puzzle: currentPuzzle,
-      index: idx >= 0 ? idx : 0,
+      puzzle: puzzles[currentIndex] || puzzles[0],
+      index: currentIndex >= 0 ? currentIndex : 0,
       total: puzzles.length
     });
   }

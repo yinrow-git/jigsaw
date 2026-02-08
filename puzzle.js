@@ -1046,8 +1046,8 @@
   // Load next unseen puzzle from server
   async function loadNextPuzzle() {
     try {
-      const url = currentDataUrl
-        ? `/api/next-puzzle?current=${encodeURIComponent(currentDataUrl)}`
+      const url = lastPuzzleIndex >= 0
+        ? `/api/next-puzzle?currentIndex=${lastPuzzleIndex}`
         : '/api/next-puzzle';
       const response = await fetch(url);
       const data = await response.json();
