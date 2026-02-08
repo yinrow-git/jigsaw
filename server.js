@@ -85,6 +85,10 @@ app.get('/api/next-puzzle', (req, res) => {
     .map((p, i) => ({ puzzle: p, index: i }))
     .filter(item => !progress.seenPuzzles.has(item.puzzle) && item.puzzle !== currentPuzzle);
 
+  console.log('Current puzzle:', currentPuzzle);
+  console.log('Available puzzles:', puzzles);
+  console.log('Unseen puzzles (excluding current):', unseenPuzzles.map(u => u.puzzle));
+
   // If no unseen puzzles, reset and get all except current
   if (unseenPuzzles.length === 0) {
     progress.seenPuzzles.clear();
