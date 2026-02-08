@@ -55,6 +55,7 @@ app.get('/api/puzzles', (req, res) => {
 // API endpoint to get next unseen puzzle for user
 app.get('/api/next-puzzle', (req, res) => {
   let userId = req.cookies.puzzleUserId;
+  const currentPuzzle = req.query.current;
 
   // Create new user ID if not exists
   if (!userId) {
@@ -78,28 +79,35 @@ app.get('/api/next-puzzle', (req, res) => {
 
   const progress = userProgress.get(userId);
 
-  // Find next unseen puzzle
-  let nextPuzzle = null;
-  let nextIndex = -1;
+  // Find unseen puzzles (excluding current)
+  let unseenPuzzles = puzzles
+    .map((p, i) => ({ puzzle: p, index: i }))
+    .filter(item => !progress.seenPuzzles.has(item.puzzle) && item.puzzle !== currentPuzzle);
 
-  for (let i = 0; i < puzzles.length; i++) {
-    if (!progress.seenPuzzles.has(puzzles[i])) {
-      nextPuzzle = puzzles[i];
-      nextIndex = i;
-      break;
-    }
-  }
-
-  // If all puzzles seen, reset and start over
-  if (nextPuzzle === null) {
+  // If no unseen puzzles, reset and get all except current
+  if (unseenPuzzles.length === 0) {
     progress.seenPuzzles.clear();
-    nextPuzzle = puzzles[0];
-    nextIndex = 0;
+    unseenPuzzles = puzzles
+      .map((p, i) => ({ puzzle: p, index: i }))
+      .filter(item => item.puzzle !== currentPuzzle);
   }
+
+  // If still no puzzles (only one puzzle exists), return current
+  if (unseenPuzzles.length === 0) {
+    const idx = puzzles.indexOf(currentPuzzle);
+    return res.json({
+      puzzle: currentPuzzle,
+      index: idx >= 0 ? idx : 0,
+      total: puzzles.length
+    });
+  }
+
+  // Pick a random puzzle from unseen
+  const randomChoice = unseenPuzzles[Math.floor(Math.random() * unseenPuzzles.length)];
 
   res.json({
-    puzzle: nextPuzzle,
-    index: nextIndex,
+    puzzle: randomChoice.puzzle,
+    index: randomChoice.index,
     total: puzzles.length
   });
 });
