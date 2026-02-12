@@ -799,7 +799,6 @@
     if (allCorrect) {
       solved = true;
       markPuzzleSolved(lastPuzzleIndex);
-      markPuzzleSeen(lastPuzzleIndex);
       addPoints(getPointsForGrid(GRID));
       puzzleBoard.classList.add("win");
       playWinSound();
@@ -907,25 +906,37 @@
   let defaultPuzzles = [];
   let lastPuzzleIndex = -1;
 
-  // Track solved puzzles in localStorage
+  // Track solved puzzles in localStorage by path (stable across puzzle list changes)
   function getSolvedPuzzles() {
     const data = localStorage.getItem("solvedPuzzles");
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    // Migrate from index-based to path-based if needed
+    if (parsed.length > 0 && typeof parsed[0] === "number") {
+      const paths = parsed
+        .filter(i => i >= 0 && i < defaultPuzzles.length)
+        .map(i => defaultPuzzles[i]);
+      localStorage.setItem("solvedPuzzles", JSON.stringify(paths));
+      return paths;
+    }
+    return parsed;
   }
 
   function markPuzzleSolved(index) {
-    const solved = getSolvedPuzzles();
-    if (!solved.includes(index)) {
-      solved.push(index);
-      localStorage.setItem("solvedPuzzles", JSON.stringify(solved));
+    const path = defaultPuzzles[index];
+    if (!path) return;
+    const solvedPaths = getSolvedPuzzles();
+    if (!solvedPaths.includes(path)) {
+      solvedPaths.push(path);
+      localStorage.setItem("solvedPuzzles", JSON.stringify(solvedPaths));
     }
   }
 
   function getUnsolvedPuzzles() {
-    const solved = getSolvedPuzzles();
+    const solvedPaths = getSolvedPuzzles();
     const unsolved = [];
     for (let i = 0; i < defaultPuzzles.length; i++) {
-      if (!solved.includes(i)) {
+      if (!solvedPaths.includes(defaultPuzzles[i])) {
         unsolved.push(i);
       }
     }
@@ -1043,40 +1054,35 @@
     }
   }
 
-  // Load next unseen puzzle from server
-  async function loadNextPuzzle() {
-    try {
-      const url = lastPuzzleIndex >= 0
-        ? `/api/next-puzzle?currentIndex=${lastPuzzleIndex}`
-        : '/api/next-puzzle';
-      const response = await fetch(url);
-      const data = await response.json();
+  // Pick a random unsolved puzzle client-side
+  function loadNextPuzzle() {
+    const solvedPaths = getSolvedPuzzles();
 
-      if (!data.puzzle) {
-        console.error('No puzzle available');
-        return;
+    // Build candidates: unsolved puzzles, excluding current
+    let candidates = [];
+    for (let i = 0; i < defaultPuzzles.length; i++) {
+      if (i !== lastPuzzleIndex && !solvedPaths.includes(defaultPuzzles[i])) {
+        candidates.push(i);
       }
-
-      lastPuzzleIndex = data.index;
-      const img = new Image();
-      img.onload = () => {
-        currentImg = img;
-        currentDataUrl = data.puzzle;
-        startGame(img, data.puzzle);
-      };
-      img.src = data.puzzle;
-    } catch (err) {
-      console.error('Failed to load next puzzle:', err);
     }
-  }
 
-  // Mark current puzzle as seen when solved
-  async function markPuzzleSeen(index) {
-    try {
-      await fetch(`/api/mark-seen/${index}`, { method: 'POST' });
-    } catch (err) {
-      console.error('Failed to mark puzzle as seen:', err);
+    // If all solved, clear and pick from all (excluding current)
+    if (candidates.length === 0) {
+      localStorage.setItem("solvedPuzzles", JSON.stringify([]));
+      for (let i = 0; i < defaultPuzzles.length; i++) {
+        if (i !== lastPuzzleIndex) {
+          candidates.push(i);
+        }
+      }
     }
+
+    // Fallback: if still empty (only one puzzle exists), use current
+    if (candidates.length === 0) {
+      candidates.push(lastPuzzleIndex >= 0 ? lastPuzzleIndex : 0);
+    }
+
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    loadPuzzle(pick);
   }
 
   initGame();
