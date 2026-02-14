@@ -1,6 +1,11 @@
 (function () {
   let GRID = 3;
-  const MAX_BOARD = 390;
+  function getMaxBoard() {
+    const vw = window.innerWidth;
+    if (vw < 500) return 390;
+    if (vw < 900) return 600;
+    return 800;
+  }
   let boardW = 0;
   let boardH = 0;
   let cellW = 0;
@@ -403,7 +408,7 @@
 
   function getBoardDimensions(imgW, imgH) {
     var ratio = imgW / imgH;
-    var maxW = Math.min(MAX_BOARD, window.innerWidth - 40);
+    var maxW = Math.min(getMaxBoard(), window.innerWidth - 40);
     var maxH = window.innerHeight - 160;
     var w = maxW;
     var h = w / ratio;
@@ -997,6 +1002,9 @@
     if (gridSize === 3) return 1;
     if (gridSize === 4) return 2;
     if (gridSize === 5) return 3;
+    if (gridSize === 6) return 5;
+    if (gridSize === 7) return 8;
+    if (gridSize === 8) return 12;
     return 1;
   }
 
@@ -1084,6 +1092,19 @@
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     loadPuzzle(pick);
   }
+
+  // Recalculate board on window resize (e.g. iPad rotation)
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (currentImg && !solved) {
+        buildGrid(GRID);
+        generatePieces(currentImg);
+        shufflePieces();
+      }
+    }, 250);
+  });
 
   initGame();
 })();
