@@ -1,5 +1,5 @@
 (function () {
-  let GRID = 3;
+  let GRID = 4;
   function getMaxBoard() {
     const vw = window.innerWidth;
     if (vw < 500) return 390;
@@ -34,6 +34,13 @@
   let currentImg = null;
   let currentDataUrl = null;
 
+  // Cached grid cells array — invalidated by buildGrid
+  let cachedCells = null;
+  function getCells() {
+    if (!cachedCells) cachedCells = Array.from(document.querySelectorAll(".grid-cell"));
+    return cachedCells;
+  }
+
   // Drag state
   let dragGroup = null; // array of { cellIndex, canvas, rowOff, colOff }
   let dragAnchorCell = null; // cell index of the clicked piece
@@ -43,6 +50,7 @@
   let dragCellW = 0;
   let dragCellH = 0;
   let groupsBefore = null; // group count before drag, to detect new connections
+  let dragCellRects = null; // cached cell bounding rects during drag
 
   function getAudioCtx() {
     if (!audioCtx) {
@@ -252,15 +260,15 @@
   // --- Group logic ---
 
   function computeGroups() {
-    const cells = document.querySelectorAll(".grid-cell");
+    const cells = getCells();
     // Build a map: cellIndex -> pieceIndex (the piece's correct index)
     const cellToPiece = new Map();
-    cells.forEach((cell) => {
-      const canvas = cell.querySelector(".puzzle-piece");
-      if (canvas) {
-        cellToPiece.set(parseInt(cell.dataset.index), parseInt(canvas.dataset.index));
+    for (let i = 0; i < cells.length; i++) {
+      const canvas = cells[i].firstElementChild;
+      if (canvas && canvas.classList.contains("puzzle-piece")) {
+        cellToPiece.set(i, parseInt(canvas.dataset.index));
       }
-    });
+    }
 
     // For each piece, compute offset = currentPos - correctPos
     // Two adjacent pieces connect if they have the same offset
@@ -328,8 +336,8 @@
     return cellToGroup;
   }
 
-  function getGroup(cellIndex) {
-    const cellToGroup = computeGroups();
+  function getGroup(cellIndex, cellToGroup) {
+    if (!cellToGroup) cellToGroup = computeGroups();
     const myGroup = cellToGroup.get(cellIndex);
     if (myGroup === undefined) return [cellIndex];
     const members = [];
@@ -340,8 +348,11 @@
   }
 
   function updateGroupVisuals() {
-    const cells = document.querySelectorAll(".grid-cell");
-    const cellToGroup = computeGroups();
+    updateGroupVisualsWithGroups(computeGroups());
+  }
+
+  function updateGroupVisualsWithGroups(cellToGroup) {
+    const cells = getCells();
 
     // Count group sizes
     const groupSizes = new Map();
@@ -349,15 +360,16 @@
       groupSizes.set(gid, (groupSizes.get(gid) || 0) + 1);
     }
 
-    cells.forEach((cell) => {
-      const ci = parseInt(cell.dataset.index);
-      const canvas = cell.querySelector(".puzzle-piece");
+    for (let ci = 0; ci < cells.length; ci++) {
+      const cell = cells[ci];
+      const canvas = cell.firstElementChild;
+      const hasPiece = canvas && canvas.classList.contains("puzzle-piece");
       const row = Math.floor(ci / GRID);
       const col = ci % GRID;
 
       // Clear group classes
       cell.classList.remove("group-right", "group-bottom", "group-left", "group-top");
-      if (canvas) {
+      if (hasPiece) {
         canvas.classList.remove("grouped", "correct");
 
         // Mark correct position
@@ -367,10 +379,10 @@
       }
 
       const myGroup = cellToGroup.get(ci);
-      if (myGroup === undefined || groupSizes.get(myGroup) < 2) return;
+      if (myGroup === undefined || groupSizes.get(myGroup) < 2) continue;
 
       // This cell is part of a multi-piece group
-      if (canvas) canvas.classList.add("grouped");
+      if (hasPiece) canvas.classList.add("grouped");
 
       // Check neighbors and hide internal borders
       // Right neighbor
@@ -401,7 +413,7 @@
           cell.classList.add("group-top");
         }
       }
-    });
+    }
   }
 
   // --- Grid building ---
@@ -421,6 +433,7 @@
 
   function buildGrid(n) {
     GRID = n;
+    cachedCells = null; // invalidate cell cache
     var dim = getBoardDimensions(currentImg.width, currentImg.height);
     boardW = dim.w;
     boardH = dim.h;
@@ -445,6 +458,7 @@
     }
     puzzleBoard.style.gridTemplateColumns = "repeat(" + n + ", 1fr)";
     puzzleBoard.style.gridTemplateRows = "repeat(" + n + ", 1fr)";
+    cachedCells = Array.from(document.querySelectorAll(".grid-cell"));
   }
 
   // --- Game setup ---
@@ -464,7 +478,7 @@
   }
 
   function generatePieces(img) {
-    const cells = document.querySelectorAll(".grid-cell");
+    const cells = getCells();
     cells.forEach((cell) => {
       cell.innerHTML = "";
     });
@@ -515,14 +529,14 @@
       }
     } while (order.every((v, i) => v === i));
 
-    const cells = document.querySelectorAll(".grid-cell");
-    cells.forEach((cell) => {
-      cell.innerHTML = "";
-      cell.classList.remove("group-right", "group-bottom", "group-left", "group-top");
-    });
+    const cells = getCells();
+    for (let i = 0; i < cells.length; i++) {
+      cells[i].innerHTML = "";
+      cells[i].classList.remove("group-right", "group-bottom", "group-left", "group-top");
+    }
 
-    order.forEach((pieceIdx, cellIdx) => {
-      const p = pieces[pieceIdx];
+    for (let cellIdx = 0; cellIdx < order.length; cellIdx++) {
+      const p = pieces[order[cellIdx]];
       p.canvas.classList.remove("dragging", "correct", "grouped", "shuffle-in");
       p.canvas.style.position = "";
       p.canvas.style.left = "";
@@ -535,7 +549,7 @@
       p.canvas.classList.add("shuffle-in");
 
       cells[cellIdx].appendChild(p.canvas);
-    });
+    }
 
     updateGroupVisuals();
   }
@@ -568,14 +582,14 @@
     const anchorRow = Math.floor(anchorCellIndex / GRID);
     const anchorCol = anchorCellIndex % GRID;
 
-    // Get all cells in the same group
-    const groupCellIndices = getGroup(anchorCellIndex);
+    const cells = getCells();
 
-    const cells = document.querySelectorAll(".grid-cell");
+    // Compute groups once, reuse for getGroup and counting
+    const cellToGroupMap = computeGroups();
+    const groupCellIndices = getGroup(anchorCellIndex, cellToGroupMap);
 
     // Count groups before the drag (to detect new connections after drop)
-    const cellToGroupBefore = computeGroups();
-    const groupIdsBefore = new Set(cellToGroupBefore.values());
+    const groupIdsBefore = new Set(cellToGroupMap.values());
     groupsBefore = groupIdsBefore.size;
 
     // Store source positions
@@ -583,8 +597,8 @@
     dragGroup = [];
 
     for (const ci of groupCellIndices) {
-      const groupCanvas = cells[ci].querySelector(".puzzle-piece");
-      if (!groupCanvas) continue;
+      const groupCanvas = cells[ci].firstElementChild;
+      if (!groupCanvas || !groupCanvas.classList.contains("puzzle-piece")) continue;
       const ciRow = Math.floor(ci / GRID);
       const ciCol = ci % GRID;
       dragSourceCells.set(ci, groupCanvas);
@@ -600,6 +614,9 @@
     const boardRect = puzzleBoard.getBoundingClientRect();
     dragCellW = boardRect.width / GRID;
     dragCellH = boardRect.height / GRID;
+
+    // Cache cell rects for the duration of this drag
+    dragCellRects = cells.map((c) => c.getBoundingClientRect());
 
     // Compute cursor offset from the anchor piece
     const anchorRect = canvas.getBoundingClientRect();
@@ -641,11 +658,10 @@
     }
 
     // Highlight the cell under the cursor (anchor target)
-    const cells = document.querySelectorAll(".grid-cell");
+    const cells = getCells();
     cells.forEach((cell) => cell.classList.remove("highlight"));
-    const target = findCellUnder(clientX, clientY);
-    if (target) {
-      const targetIdx = parseInt(target.dataset.index);
+    const targetIdx = findCellIndexUnder(clientX, clientY);
+    if (targetIdx >= 0) {
       // Highlight all target cells for the group
       for (const item of dragGroup) {
         const targetRow = Math.floor(targetIdx / GRID) + item.rowOff;
@@ -667,20 +683,19 @@
     document.removeEventListener("touchend", onDragEnd);
 
     // Clear highlights
-    document.querySelectorAll(".grid-cell").forEach((cell) => {
-      cell.classList.remove("highlight");
-    });
+    const cells = getCells();
+    for (let i = 0; i < cells.length; i++) {
+      cells[i].classList.remove("highlight");
+    }
 
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
 
-    const targetCell = findCellUnder(clientX, clientY);
-    const cells = document.querySelectorAll(".grid-cell");
+    const targetIdx = findCellIndexUnder(clientX, clientY);
 
     let dropped = false;
 
-    if (targetCell) {
-      const targetIdx = parseInt(targetCell.dataset.index);
+    if (targetIdx >= 0) {
       const targetRow = Math.floor(targetIdx / GRID);
       const targetCol = targetIdx % GRID;
 
@@ -711,8 +726,8 @@
         const displaced = [];
         for (const tci of targetCellIndices) {
           if (draggedCellIndices.has(tci)) continue;
-          const canvas = cells[tci].querySelector(".puzzle-piece");
-          if (canvas) displaced.push(canvas);
+          const child = cells[tci].firstElementChild;
+          if (child && child.classList.contains("puzzle-piece")) displaced.push(child);
         }
 
         // Collect vacated cells: source cells that aren't also target cells
@@ -761,7 +776,7 @@
       }
     }
 
-    // Update visuals and check for new connections
+    // Compute groups once, use for both snap detection and visuals
     const cellToGroupAfter = computeGroups();
     const groupIdsAfter = new Set(cellToGroupAfter.values());
     if (dropped && groupsBefore !== null && groupIdsAfter.size < groupsBefore) {
@@ -772,34 +787,42 @@
     dragAnchorCell = null;
     dragSourceCells = null;
     groupsBefore = null;
+    dragCellRects = null;
 
-    updateGroupVisuals();
+    updateGroupVisualsWithGroups(cellToGroupAfter);
     checkWin();
   }
 
-  function findCellUnder(x, y) {
-    const cells = document.querySelectorAll(".grid-cell");
-    for (const cell of cells) {
-      const rect = cell.getBoundingClientRect();
-      if (
-        x >= rect.left &&
-        x <= rect.right &&
-        y >= rect.top &&
-        y <= rect.bottom
-      ) {
-        return cell;
+  function findCellIndexUnder(x, y) {
+    if (dragCellRects) {
+      for (let i = 0; i < dragCellRects.length; i++) {
+        const rect = dragCellRects[i];
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          return i;
+        }
       }
+      return -1;
     }
-    return null;
+    // Fallback: compute from board position
+    const boardRect = puzzleBoard.getBoundingClientRect();
+    const col = Math.floor((x - boardRect.left) / (boardRect.width / GRID));
+    const row = Math.floor((y - boardRect.top) / (boardRect.height / GRID));
+    if (col >= 0 && col < GRID && row >= 0 && row < GRID) {
+      return row * GRID + col;
+    }
+    return -1;
   }
 
   function checkWin() {
-    const cells = document.querySelectorAll(".grid-cell");
-    const allCorrect = Array.from(cells).every((cell) => {
-      const canvas = cell.querySelector(".puzzle-piece");
-      if (!canvas) return false;
-      return parseInt(canvas.dataset.index) === parseInt(cell.dataset.index);
-    });
+    const cells = getCells();
+    let allCorrect = true;
+    for (let i = 0; i < cells.length; i++) {
+      const canvas = cells[i].firstElementChild;
+      if (!canvas || parseInt(canvas.dataset.index) !== i) {
+        allCorrect = false;
+        break;
+      }
+    }
 
     if (allCorrect) {
       solved = true;
@@ -1099,9 +1122,29 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (currentImg && !solved) {
+        // Capture current piece order before rebuilding
+        const oldCells = getCells();
+        const currentOrder = [];
+        for (let i = 0; i < oldCells.length; i++) {
+          const canvas = oldCells[i].firstElementChild;
+          currentOrder.push(canvas && canvas.classList.contains("puzzle-piece") ? parseInt(canvas.dataset.index) : -1);
+        }
+
         buildGrid(GRID);
         generatePieces(currentImg);
-        shufflePieces();
+
+        // Restore pieces in their previous order
+        const newCells = getCells();
+        for (let cellIdx = 0; cellIdx < currentOrder.length; cellIdx++) {
+          const pieceIdx = currentOrder[cellIdx];
+          if (pieceIdx >= 0 && pieces[pieceIdx]) {
+            const p = pieces[pieceIdx];
+            p.canvas.style.width = "100%";
+            p.canvas.style.height = "100%";
+            newCells[cellIdx].appendChild(p.canvas);
+          }
+        }
+        updateGroupVisuals();
       }
     }, 250);
   });
