@@ -931,12 +931,14 @@
 
   // --- Service Worker & Offline Support ---
 
+  // Returns a promise that resolves when the SW is active and controlling the page
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.register('/sw.js')
+      .then(() => navigator.serviceWorker.ready)
+      .catch((err) => {
         console.error('SW registration failed:', err);
       });
-    }
   }
 
   function preCachePuzzles(count) {
@@ -1096,7 +1098,24 @@
     img.onload = () => {
       currentImg = img;
       currentDataUrl = url;
+      // Track this puzzle as cached (SW will have stored it)
+      const cached = JSON.parse(localStorage.getItem('cachedPuzzlePaths') || '[]');
+      if (!cached.includes(url)) {
+        cached.push(url);
+        localStorage.setItem('cachedPuzzlePaths', JSON.stringify(cached));
+      }
       startGame(img, url);
+    };
+    img.onerror = () => {
+      console.error('Failed to load puzzle image:', url);
+      // Remove from cached paths since it's not actually available
+      const cached = JSON.parse(localStorage.getItem('cachedPuzzlePaths') || '[]');
+      const filtered = cached.filter((p) => p !== url);
+      localStorage.setItem('cachedPuzzlePaths', JSON.stringify(filtered));
+      // Try another puzzle if possible
+      if (defaultPuzzles.length > 1) {
+        loadNextPuzzle();
+      }
     };
     img.src = url;
   }
@@ -1110,7 +1129,8 @@
 
   // Fetch puzzles from server and initialize
   async function initGame() {
-    registerServiceWorker();
+    // Start SW registration (don't block first puzzle load)
+    const swReady = registerServiceWorker();
 
     try {
       const listResponse = await fetch('/api/puzzles');
@@ -1123,9 +1143,6 @@
 
       // Save puzzle list for offline use
       localStorage.setItem('cachedPuzzleList', JSON.stringify(defaultPuzzles));
-
-      // Pre-cache 25 puzzles in the background
-      preCachePuzzles(25);
 
       // Check for shared puzzle URL parameter
       const urlParams = new URLSearchParams(window.location.search);
@@ -1140,6 +1157,9 @@
       } else {
         loadNextPuzzle();
       }
+
+      // Pre-cache only after SW is active so fetches go through it
+      swReady.then(() => preCachePuzzles(25));
     } catch (err) {
       console.error('Failed to fetch puzzles:', err);
       // Offline fallback: use cached puzzle list
