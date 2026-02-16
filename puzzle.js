@@ -929,6 +929,55 @@
     }
   });
 
+  // --- Service Worker & Offline Support ---
+
+  function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('SW registration failed:', err);
+      });
+    }
+  }
+
+  function preCachePuzzles(count) {
+    const solvedPaths = getSolvedPuzzles();
+    const cachedPaths = JSON.parse(localStorage.getItem('cachedPuzzlePaths') || '[]');
+    const cachedSet = new Set(cachedPaths);
+
+    // Pick unsolved, not-yet-cached puzzles
+    const toCacheList = [];
+    for (let i = 0; i < defaultPuzzles.length; i++) {
+      if (toCacheList.length >= count) break;
+      const p = defaultPuzzles[i];
+      if (!solvedPaths.includes(p) && !cachedSet.has(p)) {
+        toCacheList.push(p);
+      }
+    }
+
+    // If not enough unsolved ones, fill with any uncached puzzles
+    if (toCacheList.length < count) {
+      for (let i = 0; i < defaultPuzzles.length; i++) {
+        if (toCacheList.length >= count) break;
+        const p = defaultPuzzles[i];
+        if (!cachedSet.has(p) && !toCacheList.includes(p)) {
+          toCacheList.push(p);
+        }
+      }
+    }
+
+    if (toCacheList.length === 0) return;
+
+    // Fetch each image (goes through SW -> gets cached automatically)
+    const fetches = toCacheList.map((p) => fetch(p).then(() => p).catch(() => null));
+    Promise.allSettled(fetches).then((results) => {
+      const newlyCached = results
+        .filter((r) => r.status === 'fulfilled' && r.value)
+        .map((r) => r.value);
+      const updatedSet = new Set([...cachedPaths, ...newlyCached]);
+      localStorage.setItem('cachedPuzzlePaths', JSON.stringify([...updatedSet]));
+    });
+  }
+
   // --- Auto-start with random puzzle ---
 
   let defaultPuzzles = [];
@@ -957,6 +1006,10 @@
     if (!solvedPaths.includes(path)) {
       solvedPaths.push(path);
       localStorage.setItem("solvedPuzzles", JSON.stringify(solvedPaths));
+    }
+    // Top-up cache when online
+    if (navigator.onLine) {
+      preCachePuzzles(1);
     }
   }
 
@@ -1057,8 +1110,9 @@
 
   // Fetch puzzles from server and initialize
   async function initGame() {
+    registerServiceWorker();
+
     try {
-      // First get the full puzzle list for sharing functionality
       const listResponse = await fetch('/api/puzzles');
       defaultPuzzles = await listResponse.json();
 
@@ -1066,6 +1120,12 @@
         console.error('No puzzles available');
         return;
       }
+
+      // Save puzzle list for offline use
+      localStorage.setItem('cachedPuzzleList', JSON.stringify(defaultPuzzles));
+
+      // Pre-cache 25 puzzles in the background
+      preCachePuzzles(25);
 
       // Check for shared puzzle URL parameter
       const urlParams = new URLSearchParams(window.location.search);
@@ -1082,27 +1142,41 @@
       }
     } catch (err) {
       console.error('Failed to fetch puzzles:', err);
+      // Offline fallback: use cached puzzle list
+      const cached = localStorage.getItem('cachedPuzzleList');
+      if (cached) {
+        defaultPuzzles = JSON.parse(cached);
+        loadNextPuzzle();
+      }
     }
   }
 
   // Pick a random unsolved puzzle client-side
   function loadNextPuzzle() {
     const solvedPaths = getSolvedPuzzles();
+    const offline = !navigator.onLine;
+    const cachedPaths = offline
+      ? new Set(JSON.parse(localStorage.getItem('cachedPuzzlePaths') || '[]'))
+      : null;
 
     // Build candidates: unsolved puzzles, excluding current
     let candidates = [];
     for (let i = 0; i < defaultPuzzles.length; i++) {
       if (i !== lastPuzzleIndex && !solvedPaths.includes(defaultPuzzles[i])) {
-        candidates.push(i);
+        if (!offline || cachedPaths.has(defaultPuzzles[i])) {
+          candidates.push(i);
+        }
       }
     }
 
-    // If all solved, clear and pick from all (excluding current)
+    // If all solved (or none cached unsolved), clear and pick from all (excluding current)
     if (candidates.length === 0) {
       localStorage.setItem("solvedPuzzles", JSON.stringify([]));
       for (let i = 0; i < defaultPuzzles.length; i++) {
         if (i !== lastPuzzleIndex) {
-          candidates.push(i);
+          if (!offline || cachedPaths.has(defaultPuzzles[i])) {
+            candidates.push(i);
+          }
         }
       }
     }
