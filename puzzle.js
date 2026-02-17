@@ -11,7 +11,7 @@
   let boardH = 0;
   let cellW = 0;
   let cellH = 0;
-  const TRAY_SCALE = 0.5;
+  const TRAY_SCALE = 0.35;
 
   const gameSection = document.getElementById("game-section");
   const puzzleBoard = document.getElementById("puzzle-board");

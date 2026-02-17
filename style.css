@@ -46,6 +46,19 @@ body {
   transition: border-color 0.2s, background 0.2s;
 }
 
+#puzzle-tray::before {
+  content: "Tray";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: rgba(212, 163, 115, 0.25);
+  pointer-events: none;
+  z-index: 0;
+}
+
 #puzzle-tray.tray-hover {
   border-color: #81b29a;
   background: rgba(129, 178, 154, 0.08);
@@ -54,6 +67,8 @@ body {
 #puzzle-tray .puzzle-piece {
   position: absolute;
   cursor: grab;
+  animation: none !important;
+  transition: none !important;
 }
 
 #puzzle-tray .puzzle-piece.dragging {
