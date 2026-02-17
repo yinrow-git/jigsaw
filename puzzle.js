@@ -680,7 +680,7 @@
       p.canvas.style.boxShadow = "";
 
       // Add shuffle animation with staggered delay
-      p.canvas.style.animationDelay = (cellIdx * 0.02) + "s";
+      p.canvas.style.animationDelay = (cellIdx * 0.008) + "s";
       p.canvas.classList.add("shuffle-in");
 
       cells[cellIdx].appendChild(p.canvas);
@@ -697,6 +697,8 @@
   }
 
   function resetCanvasStyle(canvas) {
+    // Disable transition so the drop is instant (no scale/shadow animation)
+    canvas.style.transition = "none";
     canvas.classList.remove("dragging");
     canvas.style.position = "";
     canvas.style.left = "";
@@ -706,6 +708,8 @@
     canvas.style.boxShadow = "";
     canvas.style.transform = "";
     canvas.style.transformOrigin = "";
+    // Re-enable transition after the browser paints the reset state
+    requestAnimationFrame(() => { canvas.style.transition = ""; });
   }
 
   function onDragStart(e) {

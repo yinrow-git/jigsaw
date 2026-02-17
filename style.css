@@ -330,13 +330,13 @@ body {
 .puzzle-piece {
   display: block;
   cursor: grab;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.01s, box-shadow 0.01s;
   touch-action: none;
   user-select: none;
 }
 
 .puzzle-piece.shuffle-in {
-  animation: shuffleIn 0.25s ease-out backwards;
+  animation: shuffleIn 0.1s ease-out backwards;
 }
 
 @keyframes shuffleIn {
