@@ -1344,13 +1344,7 @@
   }
 
   function getPointsForGrid(gridSize) {
-    if (gridSize === 3) return 1;
-    if (gridSize === 4) return 2;
-    if (gridSize === 5) return 3;
-    if (gridSize === 6) return 5;
-    if (gridSize === 7) return 8;
-    if (gridSize === 8) return 12;
-    return 1;
+    return gridSize * gridSize * 10;
   }
 
   function updatePointsDisplay() {
