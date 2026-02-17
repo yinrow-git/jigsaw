@@ -367,10 +367,9 @@
       const row = Math.floor(ci / GRID);
       const col = ci % GRID;
 
-      // Clear group classes
-      cell.classList.remove("grouped", "group-right", "group-bottom", "group-left", "group-top");
       if (hasPiece) {
         canvas.classList.remove("grouped", "correct");
+        canvas.style.boxShadow = "";
 
         // Mark correct position
         if (parseInt(canvas.dataset.index) === ci) {
@@ -382,37 +381,21 @@
       if (myGroup === undefined || groupSizes.get(myGroup) < 2) continue;
 
       // This cell is part of a multi-piece group
-      cell.classList.add("grouped");
       if (hasPiece) canvas.classList.add("grouped");
 
-      // Check neighbors and hide internal borders
-      // Right neighbor
-      if (col < GRID - 1) {
-        const rightIdx = ci + 1;
-        if (cellToGroup.get(rightIdx) === myGroup) {
-          cell.classList.add("group-right");
-        }
-      }
-      // Bottom neighbor
-      if (row < GRID - 1) {
-        const bottomIdx = ci + GRID;
-        if (cellToGroup.get(bottomIdx) === myGroup) {
-          cell.classList.add("group-bottom");
-        }
-      }
-      // Left neighbor
-      if (col > 0) {
-        const leftIdx = ci - 1;
-        if (cellToGroup.get(leftIdx) === myGroup) {
-          cell.classList.add("group-left");
-        }
-      }
-      // Top neighbor
-      if (row > 0) {
-        const topIdx = ci - GRID;
-        if (cellToGroup.get(topIdx) === myGroup) {
-          cell.classList.add("group-top");
-        }
+      // Compute per-side grouped highlight using box-shadow (no layout impact)
+      if (hasPiece) {
+        const groupRight = col < GRID - 1 && cellToGroup.get(ci + 1) === myGroup;
+        const groupBottom = row < GRID - 1 && cellToGroup.get(ci + GRID) === myGroup;
+        const groupLeft = col > 0 && cellToGroup.get(ci - 1) === myGroup;
+        const groupTop = row > 0 && cellToGroup.get(ci - GRID) === myGroup;
+
+        const shadows = [];
+        if (!groupTop) shadows.push("inset 0 2px 0 #81b29a");
+        if (!groupRight) shadows.push("inset -2px 0 0 #81b29a");
+        if (!groupBottom) shadows.push("inset 0 -2px 0 #81b29a");
+        if (!groupLeft) shadows.push("inset 2px 0 0 #81b29a");
+        canvas.style.boxShadow = shadows.join(", ");
       }
     }
   }
@@ -454,10 +437,10 @@
       const cell = document.createElement("div");
       cell.className = "grid-cell";
       cell.dataset.index = i;
-      if (row === 0) cell.classList.add("edge-top");
-      if (row === n - 1) cell.classList.add("edge-bottom");
-      if (col === 0) cell.classList.add("edge-left");
-      if (col === n - 1) cell.classList.add("edge-right");
+      if (row === 0) cell.style.borderTopWidth = "0";
+      if (row === n - 1) cell.style.borderBottomWidth = "0";
+      if (col === 0) cell.style.borderLeftWidth = "0";
+      if (col === n - 1) cell.style.borderRightWidth = "0";
       puzzleBoard.appendChild(cell);
     }
     puzzleBoard.style.gridTemplateColumns = "repeat(" + n + ", " + cellW + "px)";
@@ -536,7 +519,6 @@
     const cells = getCells();
     for (let i = 0; i < cells.length; i++) {
       cells[i].innerHTML = "";
-      cells[i].classList.remove("grouped", "group-right", "group-bottom", "group-left", "group-top");
     }
 
     for (let cellIdx = 0; cellIdx < order.length; cellIdx++) {
@@ -547,6 +529,7 @@
       p.canvas.style.top = "";
       p.canvas.style.width = "100%";
       p.canvas.style.height = "100%";
+      p.canvas.style.boxShadow = "";
 
       // Add shuffle animation with staggered delay
       p.canvas.style.animationDelay = (cellIdx * 0.02) + "s";
@@ -572,6 +555,7 @@
     canvas.style.top = "";
     canvas.style.width = "100%";
     canvas.style.height = "100%";
+    canvas.style.boxShadow = "";
   }
 
   function onDragStart(e) {
