@@ -3,13 +3,15 @@
   function getMaxBoard() {
     const vw = window.innerWidth;
     if (vw < 500) return 390;
-    if (vw < 900) return 600;
-    return 800;
+    if (vw < 768) return 600;
+    // Leave room for tray on desktop
+    return Math.min(800, vw - 300);
   }
   let boardW = 0;
   let boardH = 0;
   let cellW = 0;
   let cellH = 0;
+  const TRAY_SCALE = 0.5;
 
   const gameSection = document.getElementById("game-section");
   const puzzleBoard = document.getElementById("puzzle-board");
@@ -21,6 +23,12 @@
   const hintBtn = document.getElementById("hint-btn");
   const hintContainer = document.getElementById("hint-container");
   const hintImage = document.getElementById("hint-image");
+  const puzzleTray = document.getElementById("puzzle-tray");
+
+  // Tray data: each entry { canvas, pieceIndex, groupId, rowOff, colOff }
+  // groupId links grouped pieces, rowOff/colOff are grid offsets from group anchor
+  let trayPieces = [];
+  let nextTrayGroupId = 0;
 
   // Config panel elements
   const configOverlay = document.getElementById("config-overlay");
@@ -51,6 +59,143 @@
   let dragCellH = 0;
   let groupsBefore = null; // group count before drag, to detect new connections
   let dragCellRects = null; // cached cell bounding rects during drag
+  let dragFromTray = false; // whether drag originated from tray
+  let dragTrayEntry = null; // the anchor tray entry being dragged (if from tray)
+  let dragTrayGroup = null; // all tray entries in the dragged group (for returnToSource)
+
+  // --- Tray helpers ---
+
+  function addToTray(canvas, groupId, rowOff, colOff) {
+    const pieceIndex = parseInt(canvas.dataset.index);
+    if (groupId === undefined) { groupId = nextTrayGroupId++; }
+    if (rowOff === undefined) rowOff = 0;
+    if (colOff === undefined) colOff = 0;
+
+    canvas.classList.remove("dragging", "correct", "grouped");
+    canvas.style.position = "absolute";
+    canvas.style.width = cellW + "px";
+    canvas.style.height = cellH + "px";
+    canvas.style.transform = "scale(" + TRAY_SCALE + ")";
+    canvas.style.transformOrigin = "top left";
+    canvas.style.boxShadow = "";
+    puzzleTray.appendChild(canvas);
+    trayPieces.push({ canvas, pieceIndex, groupId, rowOff, colOff });
+  }
+
+  // Build tray group data in a single pass (shared by layout and capacity check)
+  function buildTrayGroups() {
+    const scaledCellW = cellW * TRAY_SCALE;
+    const scaledCellH = cellH * TRAY_SCALE;
+    const groupMap = new Map();
+    for (const tp of trayPieces) {
+      let g = groupMap.get(tp.groupId);
+      if (!g) {
+        g = { members: [], minRow: tp.rowOff, maxRow: tp.rowOff, minCol: tp.colOff, maxCol: tp.colOff };
+        groupMap.set(tp.groupId, g);
+      }
+      g.members.push(tp);
+      if (tp.rowOff < g.minRow) g.minRow = tp.rowOff;
+      if (tp.rowOff > g.maxRow) g.maxRow = tp.rowOff;
+      if (tp.colOff < g.minCol) g.minCol = tp.colOff;
+      if (tp.colOff > g.maxCol) g.maxCol = tp.colOff;
+    }
+    const groups = [];
+    for (const [, g] of groupMap) {
+      g.width = (g.maxCol - g.minCol + 1) * scaledCellW;
+      g.height = (g.maxRow - g.minRow + 1) * scaledCellH;
+      groups.push(g);
+    }
+    return groups;
+  }
+
+  function layoutTrayPieces() {
+    if (trayPieces.length === 0) return;
+    const trayW = puzzleTray.clientWidth;
+    const scaledCellW = cellW * TRAY_SCALE;
+    const scaledCellH = cellH * TRAY_SCALE;
+    const pad = 6;
+    const groups = buildTrayGroups();
+
+    let curX = pad;
+    let curY = pad;
+    let rowHeight = 0;
+
+    for (const g of groups) {
+      if (curX + g.width > trayW - pad && curX > pad) {
+        curX = pad;
+        curY += rowHeight + pad;
+        rowHeight = 0;
+      }
+      for (const m of g.members) {
+        m.canvas.style.left = (curX + (m.colOff - g.minCol) * scaledCellW) + "px";
+        m.canvas.style.top = (curY + (m.rowOff - g.minRow) * scaledCellH) + "px";
+      }
+      curX += g.width + pad;
+      rowHeight = Math.max(rowHeight, g.height);
+    }
+  }
+
+  function canFitInTray(newGroup) {
+    const trayW = puzzleTray.clientWidth;
+    const trayH = puzzleTray.getBoundingClientRect().height;
+    const scaledCellW = cellW * TRAY_SCALE;
+    const scaledCellH = cellH * TRAY_SCALE;
+    const pad = 6;
+    const groups = buildTrayGroups();
+
+    // Add the new group
+    let minRow = newGroup[0].rowOff, maxRow = minRow;
+    let minCol = newGroup[0].colOff, maxCol = minCol;
+    for (let i = 1; i < newGroup.length; i++) {
+      const r = newGroup[i].rowOff, c = newGroup[i].colOff;
+      if (r < minRow) minRow = r; if (r > maxRow) maxRow = r;
+      if (c < minCol) minCol = c; if (c > maxCol) maxCol = c;
+    }
+    groups.push({
+      width: (maxCol - minCol + 1) * scaledCellW,
+      height: (maxRow - minRow + 1) * scaledCellH,
+    });
+
+    // Simulate flow layout
+    let curX = pad;
+    let curY = pad;
+    let rowHeight = 0;
+
+    for (const g of groups) {
+      if (curX + g.width > trayW - pad && curX > pad) {
+        curX = pad;
+        curY += rowHeight + pad;
+        rowHeight = 0;
+      }
+      curX += g.width + pad;
+      rowHeight = Math.max(rowHeight, g.height);
+    }
+    return curY + rowHeight + pad <= trayH;
+  }
+
+  function removeFromTray(canvas) {
+    trayPieces = trayPieces.filter(tp => tp.canvas !== canvas);
+    if (canvas.parentElement === puzzleTray) {
+      puzzleTray.removeChild(canvas);
+    }
+  }
+
+  function clearTray() {
+    for (const tp of trayPieces) {
+      if (tp.canvas.parentElement === puzzleTray) {
+        puzzleTray.removeChild(tp.canvas);
+      }
+    }
+    trayPieces = [];
+  }
+
+  function syncTrayHeight() {
+    if (window.innerWidth >= 768) {
+      puzzleTray.style.height = boardH + "px";
+    } else {
+      puzzleTray.style.height = "";
+    }
+  }
 
   function getAudioCtx() {
     if (!audioCtx) {
@@ -446,6 +591,7 @@
     puzzleBoard.style.gridTemplateColumns = "repeat(" + n + ", " + cellW + "px)";
     puzzleBoard.style.gridTemplateRows = "repeat(" + n + ", " + cellH + "px)";
     cachedCells = Array.from(document.querySelectorAll(".grid-cell"));
+    syncTrayHeight();
   }
 
   // --- Game setup ---
@@ -457,6 +603,7 @@
     winOverlay.classList.add("hidden");
     hintContainer.classList.add("hidden");
     solved = false;
+    clearTray();
 
     buildGrid(GRID);
     generatePieces(img);
@@ -506,6 +653,7 @@
     puzzleBoard.classList.remove("win");
     winOverlay.classList.add("hidden");
     solved = false;
+    clearTray();
 
     // Create shuffled index order (ensure it's not already solved)
     const order = Array.from({ length: GRID * GRID }, (_, i) => i);
@@ -556,6 +704,8 @@
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.boxShadow = "";
+    canvas.style.transform = "";
+    canvas.style.transformOrigin = "";
   }
 
   function onDragStart(e) {
@@ -563,72 +713,126 @@
     e.preventDefault();
 
     const canvas = e.currentTarget;
-    const cell = canvas.parentElement;
-    if (!cell || !cell.classList.contains("grid-cell")) return;
+    const parent = canvas.parentElement;
 
-    const anchorCellIndex = parseInt(cell.dataset.index);
-    const anchorRow = Math.floor(anchorCellIndex / GRID);
-    const anchorCol = anchorCellIndex % GRID;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    const cells = getCells();
-
-    // Compute groups once, reuse for getGroup and counting
-    const cellToGroupMap = computeGroups();
-    const groupCellIndices = getGroup(anchorCellIndex, cellToGroupMap);
-
-    // Count groups before the drag (to detect new connections after drop)
-    const groupIdsBefore = new Set(cellToGroupMap.values());
-    groupsBefore = groupIdsBefore.size;
-
-    // Store source positions
-    dragSourceCells = new Map();
-    dragGroup = [];
-
-    for (const ci of groupCellIndices) {
-      const groupCanvas = cells[ci].firstElementChild;
-      if (!groupCanvas || !groupCanvas.classList.contains("puzzle-piece")) continue;
-      const ciRow = Math.floor(ci / GRID);
-      const ciCol = ci % GRID;
-      dragSourceCells.set(ci, groupCanvas);
-      dragGroup.push({
-        cellIndex: ci,
-        canvas: groupCanvas,
-        rowOff: ciRow - anchorRow,
-        colOff: ciCol - anchorCol,
-      });
-    }
-
-    dragAnchorCell = anchorCellIndex;
     const boardRect = puzzleBoard.getBoundingClientRect();
-    // Use actual cell dimensions (board content area, excluding 4px border each side)
     dragCellW = (boardRect.width - 8) / GRID;
     dragCellH = (boardRect.height - 8) / GRID;
 
-    // Cache cell rects for the duration of this drag
+    const cells = getCells();
     dragCellRects = cells.map((c) => c.getBoundingClientRect());
 
-    // Compute cursor offset from the anchor piece
-    const anchorRect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    dragOffsetX = clientX - anchorRect.left;
-    dragOffsetY = clientY - anchorRect.top;
+    // Determine if drag is from tray or board
+    if (parent === puzzleTray) {
+      // Dragging from tray — lift entire tray group
+      dragFromTray = true;
+      const clickedEntry = trayPieces.find(tp => tp.canvas === canvas);
+      dragTrayEntry = clickedEntry;
+      dragSourceCells = null;
+      dragAnchorCell = -1;
 
-    // Lift all group pieces out of their cells
-    for (const item of dragGroup) {
-      const rect = item.canvas.getBoundingClientRect();
-      item.canvas.classList.add("dragging");
-      item.canvas.style.left = rect.left + "px";
-      item.canvas.style.top = rect.top + "px";
-      item.canvas.style.width = dragCellW + "px";
-      item.canvas.style.height = dragCellH + "px";
-      document.body.appendChild(item.canvas);
+      // Find all pieces in the same tray group
+      const gid = clickedEntry ? clickedEntry.groupId : -1;
+      const groupMembers = trayPieces.filter(tp => tp.groupId === gid);
+
+      dragGroup = groupMembers.map(tp => ({
+        cellIndex: -1,
+        canvas: tp.canvas,
+        rowOff: tp.rowOff,
+        colOff: tp.colOff,
+      }));
+
+      // Compute group count so snap sound works when dropping tray piece onto board
+      const cellToGroupMap = computeGroups();
+      const groupIdsBefore = new Set(cellToGroupMap.values());
+      groupsBefore = groupIdsBefore.size;
+
+      const anchorRect = canvas.getBoundingClientRect();
+      dragOffsetX = (clientX - anchorRect.left) / TRAY_SCALE;
+      dragOffsetY = (clientY - anchorRect.top) / TRAY_SCALE;
+
+      // Save all group entries for returnToSource, then remove from tray tracking
+      dragTrayGroup = groupMembers.map(tp => ({ ...tp }));
+      trayPieces = trayPieces.filter(tp => tp.groupId !== gid);
+
+      // Lift all group pieces out of tray (remove scale, go to full size)
+      for (const item of dragGroup) {
+        const rect = item.canvas.getBoundingClientRect();
+        item.canvas.style.transform = "";
+        item.canvas.style.transformOrigin = "";
+        item.canvas.classList.add("dragging");
+        item.canvas.style.left = rect.left + "px";
+        item.canvas.style.top = rect.top + "px";
+        item.canvas.style.width = dragCellW + "px";
+        item.canvas.style.height = dragCellH + "px";
+        document.body.appendChild(item.canvas);
+      }
+      layoutTrayPieces();
+    } else if (parent && parent.classList.contains("grid-cell")) {
+      // Dragging from board
+      dragFromTray = false;
+      dragTrayEntry = null;
+      dragTrayGroup = null;
+
+      const anchorCellIndex = parseInt(parent.dataset.index);
+      const anchorRow = Math.floor(anchorCellIndex / GRID);
+      const anchorCol = anchorCellIndex % GRID;
+
+      const cellToGroupMap = computeGroups();
+      const groupCellIndices = getGroup(anchorCellIndex, cellToGroupMap);
+
+      const groupIdsBefore = new Set(cellToGroupMap.values());
+      groupsBefore = groupIdsBefore.size;
+
+      dragSourceCells = new Map();
+      dragGroup = [];
+
+      for (const ci of groupCellIndices) {
+        const groupCanvas = cells[ci].firstElementChild;
+        if (!groupCanvas || !groupCanvas.classList.contains("puzzle-piece")) continue;
+        const ciRow = Math.floor(ci / GRID);
+        const ciCol = ci % GRID;
+        dragSourceCells.set(ci, groupCanvas);
+        dragGroup.push({
+          cellIndex: ci,
+          canvas: groupCanvas,
+          rowOff: ciRow - anchorRow,
+          colOff: ciCol - anchorCol,
+        });
+      }
+
+      dragAnchorCell = anchorCellIndex;
+
+      const anchorRect = canvas.getBoundingClientRect();
+      dragOffsetX = clientX - anchorRect.left;
+      dragOffsetY = clientY - anchorRect.top;
+
+      // Lift all group pieces out of their cells
+      for (const item of dragGroup) {
+        const rect = item.canvas.getBoundingClientRect();
+        item.canvas.classList.add("dragging");
+        item.canvas.style.left = rect.left + "px";
+        item.canvas.style.top = rect.top + "px";
+        item.canvas.style.width = dragCellW + "px";
+        item.canvas.style.height = dragCellH + "px";
+        document.body.appendChild(item.canvas);
+      }
+    } else {
+      return;
     }
 
     document.addEventListener("mousemove", onDragMove);
     document.addEventListener("mouseup", onDragEnd);
     document.addEventListener("touchmove", onDragMove, { passive: false });
     document.addEventListener("touchend", onDragEnd);
+  }
+
+  function isCursorOverTray(x, y) {
+    const trayRect = puzzleTray.getBoundingClientRect();
+    return x >= trayRect.left && x <= trayRect.right && y >= trayRect.top && y <= trayRect.bottom;
   }
 
   function onDragMove(e) {
@@ -644,6 +848,13 @@
       const top = clientY - dragOffsetY + item.rowOff * dragCellH;
       item.canvas.style.left = left + "px";
       item.canvas.style.top = top + "px";
+    }
+
+    // Tray hover highlight
+    if (isCursorOverTray(clientX, clientY)) {
+      puzzleTray.classList.add("tray-hover");
+    } else {
+      puzzleTray.classList.remove("tray-hover");
     }
 
     // Highlight the cell under the cursor (anchor target)
@@ -663,6 +874,140 @@
     }
   }
 
+  function tryDropOnBoard(clientX, clientY, cells) {
+    const targetIdx = findCellIndexUnder(clientX, clientY);
+    if (targetIdx < 0) return false;
+
+    const targetRow = Math.floor(targetIdx / GRID);
+    const targetCol = targetIdx % GRID;
+
+    const targetCells = [];
+    let valid = true;
+
+    const draggedCellIndices = new Set(
+      dragGroup.filter(item => item.cellIndex >= 0).map(item => item.cellIndex)
+    );
+
+    for (const item of dragGroup) {
+      const tRow = targetRow + item.rowOff;
+      const tCol = targetCol + item.colOff;
+
+      if (tRow < 0 || tRow >= GRID || tCol < 0 || tCol >= GRID) {
+        valid = false;
+        break;
+      }
+
+      const tci = tRow * GRID + tCol;
+      targetCells.push({ cellIndex: tci, canvas: item.canvas });
+    }
+
+    if (!valid) return false;
+
+    const targetCellIndices = new Set(targetCells.map(t => t.cellIndex));
+
+    // Collect displaced pieces
+    const displaced = [];
+    for (const tci of targetCellIndices) {
+      if (draggedCellIndices.has(tci)) continue;
+      const child = cells[tci].firstElementChild;
+      if (child && child.classList.contains("puzzle-piece")) displaced.push(child);
+    }
+
+    // Collect vacated cells: source cells that aren't also target cells
+    const vacatedCells = [];
+    for (const sci of draggedCellIndices) {
+      if (!targetCellIndices.has(sci)) {
+        vacatedCells.push(sci);
+      }
+    }
+
+    // If dragging from tray, find empty board cells for displaced pieces
+    if (dragFromTray) {
+      // Find empty cells on the board (excluding target cells)
+      const emptyCells = [];
+      for (let i = 0; i < cells.length; i++) {
+        if (targetCellIndices.has(i)) continue;
+        const child = cells[i].firstElementChild;
+        if (!child || !child.classList.contains("puzzle-piece")) {
+          emptyCells.push(i);
+        }
+      }
+
+      // Not enough empty cells to absorb displaced pieces — reject drop
+      if (emptyCells.length < displaced.length) return false;
+
+      // Remove displaced pieces from cells
+      for (const canvas of displaced) {
+        if (canvas.parentElement) canvas.parentElement.removeChild(canvas);
+      }
+      // Place group pieces into target cells
+      for (const tc of targetCells) {
+        removeFromTray(tc.canvas);
+        resetCanvasStyle(tc.canvas);
+        cells[tc.cellIndex].appendChild(tc.canvas);
+      }
+      // Shift displaced pieces into empty board cells
+      for (let i = 0; i < displaced.length; i++) {
+        resetCanvasStyle(displaced[i]);
+        cells[emptyCells[i]].appendChild(displaced[i]);
+      }
+      return true;
+    }
+
+    // If dragging from board, need enough vacated cells for displaced pieces
+    if (displaced.length > vacatedCells.length) return false;
+
+    // Remove displaced pieces from their cells first
+    for (const canvas of displaced) {
+      if (canvas.parentElement) canvas.parentElement.removeChild(canvas);
+    }
+
+    // Place group pieces into target cells
+    for (const tc of targetCells) {
+      resetCanvasStyle(tc.canvas);
+      cells[tc.cellIndex].appendChild(tc.canvas);
+    }
+
+    // Place displaced pieces into vacated cells
+    for (let i = 0; i < displaced.length; i++) {
+      resetCanvasStyle(displaced[i]);
+      cells[vacatedCells[i]].appendChild(displaced[i]);
+    }
+
+    return true;
+  }
+
+  function tryDropOnTray(clientX, clientY) {
+    if (!isCursorOverTray(clientX, clientY)) return false;
+    if (!canFitInTray(dragGroup)) return false;
+
+    const gid = nextTrayGroupId++;
+    for (const item of dragGroup) {
+      removeFromTray(item.canvas);
+      addToTray(item.canvas, gid, item.rowOff, item.colOff);
+    }
+    layoutTrayPieces();
+    return true;
+  }
+
+  function returnToSource(cells) {
+    if (dragFromTray && dragTrayGroup) {
+      const gid = nextTrayGroupId++;
+      for (const entry of dragTrayGroup) {
+        const dgItem = dragGroup.find(item => parseInt(item.canvas.dataset.index) === entry.pieceIndex);
+        if (dgItem) {
+          addToTray(dgItem.canvas, gid, entry.rowOff, entry.colOff);
+        }
+      }
+      layoutTrayPieces();
+    } else if (dragSourceCells) {
+      for (const [ci, canvas] of dragSourceCells) {
+        resetCanvasStyle(canvas);
+        cells[ci].appendChild(canvas);
+      }
+    }
+  }
+
   function onDragEnd(e) {
     if (!dragGroup) return;
 
@@ -676,93 +1021,18 @@
     for (let i = 0; i < cells.length; i++) {
       cells[i].classList.remove("highlight");
     }
+    puzzleTray.classList.remove("tray-hover");
 
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
 
-    const targetIdx = findCellIndexUnder(clientX, clientY);
-
-    let dropped = false;
-
-    if (targetIdx >= 0) {
-      const targetRow = Math.floor(targetIdx / GRID);
-      const targetCol = targetIdx % GRID;
-
-      // Compute all target cells for the group
-      const targetCells = []; // { cellIndex, canvas }
-      let valid = true;
-
-      const draggedCellIndices = new Set(dragGroup.map((item) => item.cellIndex));
-
-      for (const item of dragGroup) {
-        const tRow = targetRow + item.rowOff;
-        const tCol = targetCol + item.colOff;
-
-        // Check bounds
-        if (tRow < 0 || tRow >= GRID || tCol < 0 || tCol >= GRID) {
-          valid = false;
-          break;
-        }
-
-        const tci = tRow * GRID + tCol;
-        targetCells.push({ cellIndex: tci, canvas: item.canvas });
-      }
-
-      if (valid) {
-        const targetCellIndices = new Set(targetCells.map((t) => t.cellIndex));
-
-        // Collect displaced pieces (only pieces directly in target cells)
-        const displaced = [];
-        for (const tci of targetCellIndices) {
-          if (draggedCellIndices.has(tci)) continue;
-          const child = cells[tci].firstElementChild;
-          if (child && child.classList.contains("puzzle-piece")) displaced.push(child);
-        }
-
-        // Collect vacated cells: source cells that aren't also target cells
-        const vacatedCells = [];
-        for (const sci of draggedCellIndices) {
-          if (!targetCellIndices.has(sci)) {
-            vacatedCells.push(sci);
-          }
-        }
-
-        // Check if there's room for displaced pieces
-        if (displaced.length > vacatedCells.length) {
-          valid = false;
-        }
-
-        if (valid) {
-          // Remove displaced pieces from their cells first
-          for (const canvas of displaced) {
-            if (canvas.parentElement) {
-              canvas.parentElement.removeChild(canvas);
-            }
-          }
-
-          // Place group pieces into target cells
-          for (const tc of targetCells) {
-            resetCanvasStyle(tc.canvas);
-            cells[tc.cellIndex].appendChild(tc.canvas);
-          }
-
-          // Place displaced pieces into vacated cells
-          for (let i = 0; i < displaced.length; i++) {
-            resetCanvasStyle(displaced[i]);
-            cells[vacatedCells[i]].appendChild(displaced[i]);
-          }
-
-          dropped = true;
-        }
-      }
-    }
-
+    // Try board first, then tray, then return to source
+    let dropped = tryDropOnBoard(clientX, clientY, cells);
     if (!dropped) {
-      // Return all pieces to original cells
-      for (const [ci, canvas] of dragSourceCells) {
-        resetCanvasStyle(canvas);
-        cells[ci].appendChild(canvas);
-      }
+      dropped = tryDropOnTray(clientX, clientY);
+    }
+    if (!dropped) {
+      returnToSource(cells);
     }
 
     // Compute groups once, use for both snap detection and visuals
@@ -777,6 +1047,9 @@
     dragSourceCells = null;
     groupsBefore = null;
     dragCellRects = null;
+    dragFromTray = false;
+    dragTrayEntry = null;
+    dragTrayGroup = null;
 
     updateGroupVisualsWithGroups(cellToGroupAfter);
     checkWin();
@@ -803,6 +1076,7 @@
   }
 
   function checkWin() {
+    if (trayPieces.length > 0) return;
     const cells = getCells();
     let allCorrect = true;
     for (let i = 0; i < cells.length; i++) {
@@ -1213,10 +1487,21 @@
           currentOrder.push(canvas && canvas.classList.contains("puzzle-piece") ? parseInt(canvas.dataset.index) : -1);
         }
 
+        // Capture tray piece data including group info
+        const oldTrayData = trayPieces.map(tp => ({
+          pieceIndex: tp.pieceIndex,
+          groupId: tp.groupId,
+          rowOff: tp.rowOff,
+          colOff: tp.colOff,
+        }));
+
+        // Remove tray canvases before regenerating
+        clearTray();
+
         buildGrid(GRID);
         generatePieces(currentImg);
 
-        // Restore pieces in their previous order
+        // Restore board pieces in their previous order
         const newCells = getCells();
         for (let cellIdx = 0; cellIdx < currentOrder.length; cellIdx++) {
           const pieceIdx = currentOrder[cellIdx];
@@ -1227,6 +1512,21 @@
             newCells[cellIdx].appendChild(p.canvas);
           }
         }
+
+        // Restore tray pieces with new canvases, preserving groups
+        const groupIdRemap = new Map();
+        for (const td of oldTrayData) {
+          if (pieces[td.pieceIndex]) {
+            const canvas = pieces[td.pieceIndex].canvas;
+            if (canvas.parentElement && canvas.parentElement.classList.contains("grid-cell")) continue;
+            if (!groupIdRemap.has(td.groupId)) {
+              groupIdRemap.set(td.groupId, nextTrayGroupId++);
+            }
+            addToTray(canvas, groupIdRemap.get(td.groupId), td.rowOff, td.colOff);
+          }
+        }
+        layoutTrayPieces();
+
         updateGroupVisuals();
       }
     }, 250);
