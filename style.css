@@ -57,28 +57,40 @@ body {
 }
 
 .grid-cell {
-  border: 1px solid rgba(212, 163, 115, 0.3);
   position: relative;
 }
 
-.grid-cell.group-right {
-  border-right-width: 0;
+/* Visual borders via pseudo-element (no layout impact) */
+.grid-cell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(212, 163, 115, 0.3);
+  pointer-events: none;
+  z-index: 1;
 }
 
-.grid-cell.group-bottom {
-  border-bottom-width: 0;
+/* Grouped cells get green border */
+.grid-cell.grouped::after {
+  border: 2px solid #81b29a;
 }
 
-.grid-cell.group-left {
-  border-left-width: 0;
-}
+/* Hide borders on shared sides */
+.grid-cell.group-right::after { border-right-width: 0; }
+.grid-cell.group-bottom::after { border-bottom-width: 0; }
+.grid-cell.group-left::after { border-left-width: 0; }
+.grid-cell.group-top::after { border-top-width: 0; }
 
-.grid-cell.group-top {
-  border-top-width: 0;
-}
+/* Hide borders on board edges */
+.grid-cell.edge-top::after { border-top-width: 0; }
+.grid-cell.edge-bottom::after { border-bottom-width: 0; }
+.grid-cell.edge-left::after { border-left-width: 0; }
+.grid-cell.edge-right::after { border-right-width: 0; }
 
 .grid-cell.highlight {
   background: rgba(129, 178, 154, 0.25);
+}
+.grid-cell.highlight::after {
   border-color: #81b29a;
 }
 
@@ -328,25 +340,7 @@ body {
   pointer-events: none;
 }
 
-.puzzle-piece.grouped {
-  border: 2px solid #81b29a;
-}
-
-.grid-cell.group-right > .puzzle-piece.grouped {
-  border-right-width: 0;
-}
-
-.grid-cell.group-left > .puzzle-piece.grouped {
-  border-left-width: 0;
-}
-
-.grid-cell.group-top > .puzzle-piece.grouped {
-  border-top-width: 0;
-}
-
-.grid-cell.group-bottom > .puzzle-piece.grouped {
-  border-bottom-width: 0;
-}
+/* Grouped highlight is now drawn via .grid-cell::after pseudo-element */
 
 .puzzle-piece.correct {
   opacity: 0.9;

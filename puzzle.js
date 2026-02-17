@@ -368,7 +368,7 @@
       const col = ci % GRID;
 
       // Clear group classes
-      cell.classList.remove("group-right", "group-bottom", "group-left", "group-top");
+      cell.classList.remove("grouped", "group-right", "group-bottom", "group-left", "group-top");
       if (hasPiece) {
         canvas.classList.remove("grouped", "correct");
 
@@ -382,6 +382,7 @@
       if (myGroup === undefined || groupSizes.get(myGroup) < 2) continue;
 
       // This cell is part of a multi-piece group
+      cell.classList.add("grouped");
       if (hasPiece) canvas.classList.add("grouped");
 
       // Check neighbors and hide internal borders
@@ -435,10 +436,13 @@
     GRID = n;
     cachedCells = null; // invalidate cell cache
     var dim = getBoardDimensions(currentImg.width, currentImg.height);
-    boardW = dim.w;
-    boardH = dim.h;
-    cellW = Math.floor(boardW / GRID);
-    cellH = Math.floor(boardH / GRID);
+    // Account for board's 4px border (box-sizing: border-box)
+    var boardBorder = 8;
+    // Ensure content area is evenly divisible by GRID for pixel-perfect tracks
+    cellW = Math.floor((dim.w - boardBorder) / GRID);
+    cellH = Math.floor((dim.h - boardBorder) / GRID);
+    boardW = cellW * GRID + boardBorder;
+    boardH = cellH * GRID + boardBorder;
 
     puzzleBoard.style.width = boardW + "px";
     puzzleBoard.style.height = boardH + "px";
@@ -450,14 +454,14 @@
       const cell = document.createElement("div");
       cell.className = "grid-cell";
       cell.dataset.index = i;
-      if (row === 0) cell.style.borderTopWidth = "0";
-      if (row === n - 1) cell.style.borderBottomWidth = "0";
-      if (col === 0) cell.style.borderLeftWidth = "0";
-      if (col === n - 1) cell.style.borderRightWidth = "0";
+      if (row === 0) cell.classList.add("edge-top");
+      if (row === n - 1) cell.classList.add("edge-bottom");
+      if (col === 0) cell.classList.add("edge-left");
+      if (col === n - 1) cell.classList.add("edge-right");
       puzzleBoard.appendChild(cell);
     }
-    puzzleBoard.style.gridTemplateColumns = "repeat(" + n + ", 1fr)";
-    puzzleBoard.style.gridTemplateRows = "repeat(" + n + ", 1fr)";
+    puzzleBoard.style.gridTemplateColumns = "repeat(" + n + ", " + cellW + "px)";
+    puzzleBoard.style.gridTemplateRows = "repeat(" + n + ", " + cellH + "px)";
     cachedCells = Array.from(document.querySelectorAll(".grid-cell"));
   }
 
@@ -532,7 +536,7 @@
     const cells = getCells();
     for (let i = 0; i < cells.length; i++) {
       cells[i].innerHTML = "";
-      cells[i].classList.remove("group-right", "group-bottom", "group-left", "group-top");
+      cells[i].classList.remove("grouped", "group-right", "group-bottom", "group-left", "group-top");
     }
 
     for (let cellIdx = 0; cellIdx < order.length; cellIdx++) {
@@ -612,8 +616,9 @@
 
     dragAnchorCell = anchorCellIndex;
     const boardRect = puzzleBoard.getBoundingClientRect();
-    dragCellW = boardRect.width / GRID;
-    dragCellH = boardRect.height / GRID;
+    // Use actual cell dimensions (board content area, excluding 4px border each side)
+    dragCellW = (boardRect.width - 8) / GRID;
+    dragCellH = (boardRect.height - 8) / GRID;
 
     // Cache cell rects for the duration of this drag
     dragCellRects = cells.map((c) => c.getBoundingClientRect());
