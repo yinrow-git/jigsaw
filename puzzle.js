@@ -4,8 +4,8 @@
     const vw = window.innerWidth;
     if (vw < 500) return 390;
     if (vw < 768) return 600;
-    // Leave room for tray on desktop
-    return Math.min(800, vw - 300);
+    // Leave room for tray column on desktop
+    return Math.min(800, vw - 260);
   }
   let boardW = 0;
   let boardH = 0;
@@ -190,11 +190,9 @@
   }
 
   function syncTrayHeight() {
-    if (window.innerWidth >= 768) {
-      puzzleTray.style.height = boardH + "px";
-    } else {
-      puzzleTray.style.height = "";
-    }
+    // On desktop, tray-and-controls stretches to board height via align-items:stretch,
+    // and #puzzle-tray fills remaining space via flex:1. No explicit height needed.
+    puzzleTray.style.height = "";
   }
 
   function getAudioCtx() {
@@ -550,7 +548,9 @@
   function getBoardDimensions(imgW, imgH) {
     var ratio = imgW / imgH;
     var maxW = Math.min(getMaxBoard(), window.innerWidth - 40);
-    var maxH = window.innerHeight - 160;
+    var maxH = window.innerWidth >= 768
+      ? window.innerHeight - 80
+      : window.innerHeight - 160;
     var w = maxW;
     var h = w / ratio;
     if (h > maxH) {
