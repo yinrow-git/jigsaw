@@ -11,7 +11,7 @@
   let boardH = 0;
   let cellW = 0;
   let cellH = 0;
-  const TRAY_SCALE = 0.35;
+  function getTrayScale() { return Math.min(0.70, 0.10 * GRID); }
 
   const gameSection = document.getElementById("game-section");
   const puzzleBoard = document.getElementById("puzzle-board");
@@ -75,7 +75,7 @@
     canvas.style.position = "absolute";
     canvas.style.width = cellW + "px";
     canvas.style.height = cellH + "px";
-    canvas.style.transform = "scale(" + TRAY_SCALE + ")";
+    canvas.style.transform = "scale(" + getTrayScale() + ")";
     canvas.style.transformOrigin = "top left";
     canvas.style.boxShadow = "";
     puzzleTray.appendChild(canvas);
@@ -84,8 +84,8 @@
 
   // Build tray group data in a single pass (shared by layout and capacity check)
   function buildTrayGroups() {
-    const scaledCellW = cellW * TRAY_SCALE;
-    const scaledCellH = cellH * TRAY_SCALE;
+    const scaledCellW = cellW * getTrayScale();
+    const scaledCellH = cellH * getTrayScale();
     const groupMap = new Map();
     for (const tp of trayPieces) {
       let g = groupMap.get(tp.groupId);
@@ -111,8 +111,8 @@
   function layoutTrayPieces() {
     if (trayPieces.length === 0) return;
     const trayW = puzzleTray.clientWidth;
-    const scaledCellW = cellW * TRAY_SCALE;
-    const scaledCellH = cellH * TRAY_SCALE;
+    const scaledCellW = cellW * getTrayScale();
+    const scaledCellH = cellH * getTrayScale();
     const pad = 6;
     const groups = buildTrayGroups();
 
@@ -138,8 +138,8 @@
   function canFitInTray(newGroup) {
     const trayW = puzzleTray.clientWidth;
     const trayH = puzzleTray.getBoundingClientRect().height;
-    const scaledCellW = cellW * TRAY_SCALE;
-    const scaledCellH = cellH * TRAY_SCALE;
+    const scaledCellW = cellW * getTrayScale();
+    const scaledCellH = cellH * getTrayScale();
     const pad = 6;
     const groups = buildTrayGroups();
 
@@ -510,9 +510,16 @@
       const row = Math.floor(ci / GRID);
       const col = ci % GRID;
 
+      // Reset cell grouped state
+      cell.classList.remove("grouped");
+      cell.style.removeProperty("--group-border");
+      cell.style.borderTop = "";
+      cell.style.borderRight = "";
+      cell.style.borderBottom = "";
+      cell.style.borderLeft = "";
+
       if (hasPiece) {
-        canvas.classList.remove("grouped", "correct");
-        canvas.style.boxShadow = "";
+        canvas.classList.remove("correct");
 
         // Mark correct position
         if (parseInt(canvas.dataset.index) === ci) {
@@ -523,23 +530,27 @@
       const myGroup = cellToGroup.get(ci);
       if (myGroup === undefined || groupSizes.get(myGroup) < 2) continue;
 
-      // This cell is part of a multi-piece group
-      if (hasPiece) canvas.classList.add("grouped");
+      // Compute per-side border on the grid-cell ::after (renders above the canvas)
+      const groupRight = col < GRID - 1 && cellToGroup.get(ci + 1) === myGroup;
+      const groupBottom = row < GRID - 1 && cellToGroup.get(ci + GRID) === myGroup;
+      const groupLeft = col > 0 && cellToGroup.get(ci - 1) === myGroup;
+      const groupTop = row > 0 && cellToGroup.get(ci - GRID) === myGroup;
 
-      // Compute per-side grouped highlight using box-shadow (no layout impact)
-      if (hasPiece) {
-        const groupRight = col < GRID - 1 && cellToGroup.get(ci + 1) === myGroup;
-        const groupBottom = row < GRID - 1 && cellToGroup.get(ci + GRID) === myGroup;
-        const groupLeft = col > 0 && cellToGroup.get(ci - 1) === myGroup;
-        const groupTop = row > 0 && cellToGroup.get(ci - GRID) === myGroup;
+      // Hide internal borders between same-group neighbors
+      if (groupTop) cell.style.borderTop = "none";
+      if (groupRight) cell.style.borderRight = "none";
+      if (groupBottom) cell.style.borderBottom = "none";
+      if (groupLeft) cell.style.borderLeft = "none";
 
-        const shadows = [];
-        if (!groupTop) shadows.push("inset 0 2px 0 #81b29a");
-        if (!groupRight) shadows.push("inset -2px 0 0 #81b29a");
-        if (!groupBottom) shadows.push("inset 0 -2px 0 #81b29a");
-        if (!groupLeft) shadows.push("inset 2px 0 0 #81b29a");
-        canvas.style.boxShadow = shadows.join(", ");
-      }
+      // Draw outer group border via ::after (on top of canvas)
+      // Two-layer shadow: white highlight + dark underline for contrast on any image
+      const shadows = [];
+      if (!groupTop)    { shadows.push("inset 0 3px 0 rgba(255,255,255,0.85)");  shadows.push("inset 0 4px 0 rgba(0,0,0,0.18)"); }
+      if (!groupRight)  { shadows.push("inset -3px 0 0 rgba(255,255,255,0.85)"); shadows.push("inset -4px 0 0 rgba(0,0,0,0.18)"); }
+      if (!groupBottom) { shadows.push("inset 0 -3px 0 rgba(255,255,255,0.85)"); shadows.push("inset 0 -4px 0 rgba(0,0,0,0.18)"); }
+      if (!groupLeft)   { shadows.push("inset 3px 0 0 rgba(255,255,255,0.85)");  shadows.push("inset 4px 0 0 rgba(0,0,0,0.18)"); }
+      cell.classList.add("grouped");
+      cell.style.setProperty("--group-border", shadows.join(", "));
     }
   }
 
@@ -755,8 +766,8 @@
       groupsBefore = groupIdsBefore.size;
 
       const anchorRect = canvas.getBoundingClientRect();
-      dragOffsetX = (clientX - anchorRect.left) / TRAY_SCALE;
-      dragOffsetY = (clientY - anchorRect.top) / TRAY_SCALE;
+      dragOffsetX = (clientX - anchorRect.left) / getTrayScale();
+      dragOffsetY = (clientY - anchorRect.top) / getTrayScale();
 
       // Save all group entries for returnToSource, then remove from tray tracking
       dragTrayGroup = groupMembers.map(tp => ({ ...tp }));

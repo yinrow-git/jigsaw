@@ -364,7 +364,15 @@ body {
   pointer-events: none;
 }
 
-/* Grouped highlight is now drawn via .grid-cell::after pseudo-element */
+/* Grouped highlight drawn via ::after on the grid-cell, on top of the canvas */
+.grid-cell.grouped::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: var(--group-border, none);
+}
 
 .puzzle-piece.correct {
   opacity: 0.9;
