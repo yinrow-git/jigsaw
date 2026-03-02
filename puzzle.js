@@ -614,6 +614,11 @@
     winOverlay.classList.add("hidden");
     hintContainer.classList.add("hidden");
     solved = false;
+
+    // Abort any in-flight drag and remove any pieces orphaned on document.body
+    abortDrag();
+    document.querySelectorAll("body > .puzzle-piece").forEach(el => el.remove());
+
     clearTray();
 
     buildGrid(GRID);
@@ -725,6 +730,7 @@
 
   function onDragStart(e) {
     if (solved) return;
+    if (dragGroup) return; // ignore additional touches while drag is in progress
     e.preventDefault();
 
     const canvas = e.currentTarget;
@@ -843,6 +849,7 @@
     document.addEventListener("mouseup", onDragEnd);
     document.addEventListener("touchmove", onDragMove, { passive: false });
     document.addEventListener("touchend", onDragEnd);
+    document.addEventListener("touchcancel", abortDrag);
   }
 
   function isCursorOverTray(x, y) {
@@ -1023,6 +1030,31 @@
     }
   }
 
+  function abortDrag() {
+    if (!dragGroup) return;
+    document.removeEventListener("mousemove", onDragMove);
+    document.removeEventListener("mouseup", onDragEnd);
+    document.removeEventListener("touchmove", onDragMove);
+    document.removeEventListener("touchend", onDragEnd);
+    document.removeEventListener("touchcancel", abortDrag);
+
+    const cells = getCells();
+    getCells().forEach(cell => cell.classList.remove("highlight"));
+    puzzleTray.classList.remove("tray-hover");
+    returnToSource(cells);
+
+    dragGroup = null;
+    dragAnchorCell = null;
+    dragSourceCells = null;
+    groupsBefore = null;
+    dragCellRects = null;
+    dragFromTray = false;
+    dragTrayEntry = null;
+    dragTrayGroup = null;
+
+    updateGroupVisuals();
+  }
+
   function onDragEnd(e) {
     if (!dragGroup) return;
 
@@ -1030,6 +1062,7 @@
     document.removeEventListener("mouseup", onDragEnd);
     document.removeEventListener("touchmove", onDragMove);
     document.removeEventListener("touchend", onDragEnd);
+    document.removeEventListener("touchcancel", abortDrag);
 
     // Clear highlights
     const cells = getCells();
