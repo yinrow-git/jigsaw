@@ -29,8 +29,9 @@ for file in "$PUZZLES_DIR"/*; do
   esac
 
   echo -n "Uploading $filename ... "
+  encoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$filename")
   response=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X PUT "$RAILWAY_URL/admin/puzzles/$filename" \
+    -X PUT "$RAILWAY_URL/admin/puzzles/$encoded" \
     -H "x-upload-secret: $UPLOAD_SECRET" \
     -H "Content-Type: application/octet-stream" \
     --data-binary "@$file")
