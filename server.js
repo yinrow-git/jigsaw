@@ -129,6 +129,24 @@ app.post('/api/mark-seen/:index', express.json(), (req, res) => {
   res.json({ success: true });
 });
 
+// Upload endpoint — PUT /admin/puzzles/:filename
+// Protected by UPLOAD_SECRET env var; used by upload-puzzles.sh
+app.put('/admin/puzzles/:filename', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const filename = path.basename(req.params.filename);
+  const dest = path.join(PUZZLES_DIR, filename);
+  try {
+    fs.mkdirSync(PUZZLES_DIR, { recursive: true });
+    fs.writeFileSync(dest, req.body);
+    res.json({ ok: true, file: filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Puzzle server running at http://localhost:${PORT}`);
 });
