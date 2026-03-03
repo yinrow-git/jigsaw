@@ -16,9 +16,13 @@ app.use(cookieParser());
 // Serve static files
 app.use(express.static(__dirname));
 
+// Puzzles directory — can be overridden by env var to point at a mounted volume
+const PUZZLES_DIR = process.env.PUZZLES_DIR || path.join(__dirname, 'puzzles');
+app.use('/puzzles', express.static(PUZZLES_DIR));
+
 // Get puzzles sorted by creation time
 function getPuzzlesSortedByTime() {
-  const puzzlesDir = path.join(__dirname, 'puzzles');
+  const puzzlesDir = PUZZLES_DIR;
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 
   try {
