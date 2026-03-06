@@ -109,13 +109,12 @@ body {
 }
 
 .grid-cell {
-  border: 1px solid rgba(212, 163, 115, 0.3);
   position: relative;
 }
 
 .grid-cell.highlight {
   background: rgba(129, 178, 154, 0.25);
-  border-color: #81b29a;
+  box-shadow: inset 0 0 0 2px #81b29a;
 }
 
 .controls {
