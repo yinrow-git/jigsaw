@@ -1430,6 +1430,9 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (currentImg && !solved) {
+        // Abort any in-progress drag so pieces are back on the board before we rebuild
+        abortDrag();
+
         // Capture current piece order before rebuilding
         const oldCells = getCells();
         const currentOrder = [];
