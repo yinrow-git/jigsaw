@@ -147,6 +147,26 @@ app.put('/admin/puzzles/:filename', express.raw({ type: '*/*', limit: '50mb' }),
   }
 });
 
+// Delete endpoint — DELETE /admin/puzzles/:filename
+// Protected by UPLOAD_SECRET env var; used by delete-puzzles.sh
+app.delete('/admin/puzzles/:filename', (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const filename = path.basename(req.params.filename);
+  const dest = path.join(PUZZLES_DIR, filename);
+  try {
+    fs.unlinkSync(dest);
+    res.json({ ok: true, file: filename });
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Puzzle server running at http://localhost:${PORT}`);
 });
