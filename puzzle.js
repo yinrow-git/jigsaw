@@ -1,4 +1,20 @@
-(function () {
+// Fisher-Yates shuffle of [0..length-1], retried until it differs from the
+// identity order — except when length <= 1, where no other order exists and
+// retrying would loop forever.
+function generateShuffleOrder(length) {
+  const order = Array.from({ length }, (_, i) => i);
+  if (order.length > 1) {
+    do {
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+    } while (order.every((v, i) => v === i));
+  }
+  return order;
+}
+
+function initPuzzleApp() {
   let GRID = 4;
   function getMaxBoard() {
     const vw = window.innerWidth;
@@ -20,9 +36,6 @@
   const winOverlay = document.getElementById("win-overlay");
   const playAgainBtn = document.getElementById("play-again-btn");
   const pointsDisplay = document.getElementById("points-display");
-  const hintBtn = document.getElementById("hint-btn");
-  const hintContainer = document.getElementById("hint-container");
-  const hintImage = document.getElementById("hint-image");
   const puzzleTray = document.getElementById("puzzle-tray");
 
   // Tray data: each entry { canvas, pieceIndex, groupId, rowOff, colOff }
@@ -40,7 +53,6 @@
   let solved = false;
   let audioCtx = null;
   let currentImg = null;
-  let currentDataUrl = null;
 
   // Cached grid cells array — invalidated by buildGrid
   let cachedCells = null;
@@ -607,12 +619,10 @@
 
   // --- Game setup ---
 
-  function startGame(img, dataUrl) {
+  function startGame(img) {
     currentImg = img;
-    currentDataUrl = dataUrl;
     puzzleBoard.classList.remove("win");
     winOverlay.classList.add("hidden");
-    hintContainer.classList.add("hidden");
     solved = false;
 
     // Abort any in-flight drag and remove any pieces orphaned on document.body
@@ -672,13 +682,7 @@
     clearTray();
 
     // Create shuffled index order (ensure it's not already solved)
-    const order = Array.from({ length: GRID * GRID }, (_, i) => i);
-    do {
-      for (let i = order.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [order[i], order[j]] = [order[j], order[i]];
-      }
-    } while (order.every((v, i) => v === i));
+    const order = generateShuffleOrder(GRID * GRID);
 
     const cells = getCells();
     for (let i = 0; i < cells.length; i++) {
@@ -1230,16 +1234,6 @@
     }, 2000);
   }
 
-  hintBtn.addEventListener("click", () => {
-    playClickSound();
-    if (hintContainer.classList.contains("hidden")) {
-      hintImage.src = currentDataUrl;
-      hintContainer.classList.remove("hidden");
-    } else {
-      hintContainer.classList.add("hidden");
-    }
-  });
-
   // --- Auto-start with random puzzle ---
 
   let defaultPuzzles = [];
@@ -1347,8 +1341,7 @@
     const img = new Image();
     img.onload = () => {
       currentImg = img;
-      currentDataUrl = url;
-      startGame(img, url);
+      startGame(img);
     };
     img.onerror = () => {
       console.error('Failed to load puzzle image:', url);
@@ -1487,4 +1480,12 @@
   });
 
   initGame();
-})();
+}
+
+if (typeof document !== "undefined") {
+  initPuzzleApp();
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { generateShuffleOrder };
+}
