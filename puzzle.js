@@ -15,7 +15,7 @@ function generateShuffleOrder(length) {
 }
 
 function initPuzzleApp() {
-  let GRID = 4;
+  let GRID = 3;
   function getMaxBoard() {
     const vw = window.innerWidth;
     if (vw < 500) return 390;
@@ -242,6 +242,24 @@ function initPuzzleApp() {
 
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.25);
+  }
+
+  function playTraySound() {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    // Soft downward "plop", distinct from the snap chime's upward ring
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
   }
 
   function playStartSound() {
@@ -1075,8 +1093,10 @@ function initPuzzleApp() {
 
     // Try board first, then tray, then return to source
     let dropped = tryDropOnBoard(clientX, clientY, cells);
+    let dropTarget = dropped ? "board" : null;
     if (!dropped) {
       dropped = tryDropOnTray(clientX, clientY);
+      if (dropped) dropTarget = "tray";
     }
     if (!dropped) {
       returnToSource(cells);
@@ -1085,8 +1105,10 @@ function initPuzzleApp() {
     // Compute groups once, use for both snap detection and visuals
     const cellToGroupAfter = computeGroups();
     const groupIdsAfter = new Set(cellToGroupAfter.values());
-    if (dropped && groupsBefore !== null && groupIdsAfter.size < groupsBefore) {
+    if (dropTarget === "board" && groupsBefore !== null && groupIdsAfter.size < groupsBefore) {
       playSnapSound();
+    } else if (dropTarget === "tray") {
+      playTraySound();
     }
 
     dragGroup = null;
