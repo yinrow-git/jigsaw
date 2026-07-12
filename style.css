@@ -94,7 +94,10 @@ body {
 #puzzle-board.win {
   border-color: #81b29a;
   box-shadow: 0 0 40px rgba(129, 178, 154, 0.6), 0 0 80px rgba(129, 178, 154, 0.3);
-  animation: winGlow 1s ease-in-out infinite alternate, winPop 0.5s ease-out;
+  /* Finite iteration count: pulse a few times then settle on the static
+     glow above, instead of animating box-shadow forever and burning
+     battery while the win screen just sits there. */
+  animation: winGlow 1s ease-in-out 4 alternate, winPop 0.5s ease-out;
 }
 
 @keyframes winGlow {

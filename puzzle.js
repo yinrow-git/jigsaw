@@ -65,10 +65,10 @@ function initPuzzleApp() {
   let dragGroup = null; // array of { cellIndex, canvas, rowOff, colOff }
   let dragAnchorCell = null; // cell index of the clicked piece
   let dragSourceCells = null; // Map: cellIndex -> canvas (original positions)
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
   let dragCellW = 0;
   let dragCellH = 0;
+  let dragStartClientX = 0; // cursor position at drag start, for transform-based deltas
+  let dragStartClientY = 0;
   let groupsBefore = null; // group count before drag, to detect new connections
   let dragCellRects = null; // cached cell bounding rects during drag
   let dragFromTray = false; // whether drag originated from tray
@@ -742,6 +742,8 @@ function initPuzzleApp() {
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartClientX = clientX;
+    dragStartClientY = clientY;
 
     const boardRect = puzzleBoard.getBoundingClientRect();
     dragCellW = (boardRect.width - 8) / GRID;
@@ -774,10 +776,6 @@ function initPuzzleApp() {
       const cellToGroupMap = computeGroups();
       const groupIdsBefore = new Set(cellToGroupMap.values());
       groupsBefore = groupIdsBefore.size;
-
-      const anchorRect = canvas.getBoundingClientRect();
-      dragOffsetX = (clientX - anchorRect.left) / getTrayScale();
-      dragOffsetY = (clientY - anchorRect.top) / getTrayScale();
 
       // Save all group entries for returnToSource, then remove from tray tracking
       dragTrayGroup = groupMembers.map(tp => ({ ...tp }));
@@ -831,10 +829,6 @@ function initPuzzleApp() {
 
       dragAnchorCell = anchorCellIndex;
 
-      const anchorRect = canvas.getBoundingClientRect();
-      dragOffsetX = clientX - anchorRect.left;
-      dragOffsetY = clientY - anchorRect.top;
-
       // Lift all group pieces out of their cells
       for (const item of dragGroup) {
         const rect = item.canvas.getBoundingClientRect();
@@ -868,12 +862,13 @@ function initPuzzleApp() {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    // Position each piece relative to cursor
+    // Position each piece via transform (compositor-only, avoids layout/paint
+    // on every move event) instead of animating left/top.
+    const dx = clientX - dragStartClientX;
+    const dy = clientY - dragStartClientY;
+    const transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.08)`;
     for (const item of dragGroup) {
-      const left = clientX - dragOffsetX + item.colOff * dragCellW;
-      const top = clientY - dragOffsetY + item.rowOff * dragCellH;
-      item.canvas.style.left = left + "px";
-      item.canvas.style.top = top + "px";
+      item.canvas.style.transform = transform;
     }
 
     // Tray hover highlight
