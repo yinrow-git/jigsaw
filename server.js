@@ -60,6 +60,9 @@ function getDailyPuzzle() {
 
 // API endpoint to get today's puzzle image
 app.get('/api/daily-puzzle', (req, res) => {
+  // The app's WKWebView loads its page from a file:// origin, so this needs
+  // an explicit CORS header or the fetch() response gets blocked client-side.
+  res.header('Access-Control-Allow-Origin', '*');
   const daily = getDailyPuzzle();
   if (!daily) {
     return res.status(404).json({ error: 'No puzzles available' });
