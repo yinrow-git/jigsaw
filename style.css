@@ -129,51 +129,6 @@ body {
   align-items: center;
 }
 
-#points-display {
-  font-size: 1rem;
-  color: #5d534a;
-  font-weight: 500;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 8px;
-  border: 2px solid #e8ddd4;
-}
-
-#points-display.points-added {
-  animation: pointsPop 0.4s ease;
-}
-
-@keyframes pointsPop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); color: #81b29a; }
-  100% { transform: scale(1); }
-}
-
-/* Diamond sparkles */
-.diamond-sparkle {
-  position: fixed;
-  font-size: 1rem;
-  color: #f4e4ba;
-  pointer-events: none;
-  z-index: 3000;
-  text-shadow: 0 0 4px #ffd166;
-  animation: sparkle-burst 0.7s ease-out forwards;
-}
-
-@keyframes sparkle-burst {
-  0% {
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 1;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
-    opacity: 0;
-  }
-}
-
 .controls button {
   padding: 8px 14px;
   border: none;
@@ -181,27 +136,6 @@ body {
   font-size: 1.5rem;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
-}
-
-#new-game-btn {
-  background: #81b29a;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(129, 178, 154, 0.3);
-}
-
-#new-game-btn:hover {
-  background: #6a9b84;
-  transform: translateY(-1px);
-}
-
-#share-btn {
-  background: #e8ddd4;
-  color: #5d534a;
-}
-
-#share-btn:hover {
-  background: #ddd0c5;
-  transform: translateY(-1px);
 }
 
 /* Config Button */
@@ -458,28 +392,6 @@ body {
   }
 }
 
-/* Toast notification */
-.toast {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: #5d534a;
-  color: #fff;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  opacity: 0;
-  transition: opacity 0.3s, transform 0.3s;
-  z-index: 3000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
 /* Responsive */
 @media (max-width: 650px) {
   .container {
@@ -510,10 +422,5 @@ body {
   .controls button {
     padding: 10px 18px;
     font-size: 1.7rem;
-  }
-
-  #points-display {
-    font-size: 1.1rem;
-    padding: 10px 16px;
   }
 }

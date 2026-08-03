@@ -31,11 +31,8 @@ function initPuzzleApp() {
 
   const gameSection = document.getElementById("game-section");
   const puzzleBoard = document.getElementById("puzzle-board");
-  const newGameBtn = document.getElementById("new-game-btn");
-  const shareBtn = document.getElementById("share-btn");
   const winOverlay = document.getElementById("win-overlay");
   const playAgainBtn = document.getElementById("play-again-btn");
-  const pointsDisplay = document.getElementById("points-display");
   const puzzleTray = document.getElementById("puzzle-tray");
 
   // Tray data: each entry { canvas, pieceIndex, groupId, rowOff, colOff }
@@ -281,28 +278,6 @@ function initPuzzleApp() {
 
       osc.start(t);
       osc.stop(t + 0.3);
-    });
-  }
-
-  function playDiamondSound() {
-    const ctx = getAudioCtx();
-    // Sparkly coin-like sound
-    const notes = [1318, 1568, 2093]; // E6, G6, C7
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const t = ctx.currentTime + i * 0.08;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.15, t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-
-      osc.start(t);
-      osc.stop(t + 0.25);
     });
   }
 
@@ -1158,8 +1133,6 @@ function initPuzzleApp() {
 
     if (allCorrect) {
       solved = true;
-      markPuzzleSolved(lastPuzzleIndex);
-      addPoints(getPointsForGrid(GRID));
       puzzleBoard.classList.add("win");
       playWinSound();
       createFireworks();
@@ -1173,15 +1146,10 @@ function initPuzzleApp() {
 
   // --- Controls ---
 
-  newGameBtn.addEventListener("click", () => {
-    playClickSound();
-    loadRandomPuzzle();
-  });
-
   playAgainBtn.addEventListener("click", (e) => {
     e.preventDefault();
     playClickSound();
-    loadRandomPuzzle();
+    loadDailyPuzzle();
   });
 
   // Config panel handlers
@@ -1224,137 +1192,11 @@ function initPuzzleApp() {
     configOverlay.classList.add("hidden");
   });
 
-  shareBtn.addEventListener("click", () => {
-    playClickSound();
-    const url = new URL(window.location.href);
-    url.searchParams.set("puzzle", lastPuzzleIndex);
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      showToast("Link copied to clipboard!");
-    }).catch(() => {
-      prompt("Share this URL:", url.toString());
-    });
-  });
+  // --- Auto-start with today's daily puzzle ---
 
-  function showToast(message) {
-    const existing = document.querySelector(".toast");
-    if (existing) existing.remove();
+  let dailyPuzzlePath = null;
 
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    setTimeout(() => toast.classList.add("show"), 10);
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.remove(), 300);
-    }, 2000);
-  }
-
-  // --- Auto-start with random puzzle ---
-
-  let defaultPuzzles = [];
-  let lastPuzzleIndex = -1;
-
-  // Track solved puzzles in localStorage by path (stable across puzzle list changes)
-  function getSolvedPuzzles() {
-    const data = localStorage.getItem("solvedPuzzles");
-    if (!data) return [];
-    const parsed = JSON.parse(data);
-    // Migrate from index-based to path-based if needed
-    if (parsed.length > 0 && typeof parsed[0] === "number") {
-      const paths = parsed
-        .filter(i => i >= 0 && i < defaultPuzzles.length)
-        .map(i => defaultPuzzles[i]);
-      localStorage.setItem("solvedPuzzles", JSON.stringify(paths));
-      return paths;
-    }
-    return parsed;
-  }
-
-  function markPuzzleSolved(index) {
-    const path = defaultPuzzles[index];
-    if (!path) return;
-    const solvedPaths = getSolvedPuzzles();
-    if (!solvedPaths.includes(path)) {
-      solvedPaths.push(path);
-      localStorage.setItem("solvedPuzzles", JSON.stringify(solvedPaths));
-    }
-  }
-
-  function getUnsolvedPuzzles() {
-    const solvedPaths = getSolvedPuzzles();
-    const unsolved = [];
-    for (let i = 0; i < defaultPuzzles.length; i++) {
-      if (!solvedPaths.includes(defaultPuzzles[i])) {
-        unsolved.push(i);
-      }
-    }
-    return unsolved;
-  }
-
-  // Points system
-  function getPoints() {
-    return parseInt(localStorage.getItem("puzzlePoints") || "0");
-  }
-
-  function addPoints(amount) {
-    const current = getPoints();
-    const newTotal = current + amount;
-    localStorage.setItem("puzzlePoints", newTotal.toString());
-    updatePointsDisplay();
-
-    // Play diamond sound
-    playDiamondSound();
-
-    // Animate the points display
-    pointsDisplay.classList.remove("points-added");
-    void pointsDisplay.offsetWidth; // Trigger reflow
-    pointsDisplay.classList.add("points-added");
-
-    // Create sparkles around the diamond
-    createDiamondSparkles();
-  }
-
-  function createDiamondSparkles() {
-    const rect = pointsDisplay.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    for (let i = 0; i < 12; i++) {
-      const sparkle = document.createElement("div");
-      sparkle.className = "diamond-sparkle";
-      sparkle.textContent = "✦";
-
-      const angle = (Math.PI * 2 * i) / 12;
-      const distance = 40 + Math.random() * 30;
-      const dx = Math.cos(angle) * distance;
-      const dy = Math.sin(angle) * distance;
-
-      sparkle.style.left = centerX + "px";
-      sparkle.style.top = centerY + "px";
-      sparkle.style.setProperty("--dx", dx + "px");
-      sparkle.style.setProperty("--dy", dy + "px");
-      sparkle.style.animationDelay = (Math.random() * 0.2) + "s";
-
-      document.body.appendChild(sparkle);
-
-      setTimeout(() => sparkle.remove(), 800);
-    }
-  }
-
-  function getPointsForGrid(gridSize) {
-    return gridSize * gridSize * 10;
-  }
-
-  function updatePointsDisplay() {
-    pointsDisplay.textContent = `💎 ${getPoints()}`;
-  }
-
-
-  function loadPuzzle(index) {
-    lastPuzzleIndex = index;
-    const url = defaultPuzzles[index];
+  function loadImage(url) {
     const img = new Image();
     img.onload = () => {
       currentImg = img;
@@ -1362,76 +1204,32 @@ function initPuzzleApp() {
     };
     img.onerror = () => {
       console.error('Failed to load puzzle image:', url);
-      if (defaultPuzzles.length > 1) {
-        loadNextPuzzle();
-      }
     };
     img.src = url;
   }
 
-  function loadRandomPuzzle() {
-    loadNextPuzzle();
+  // Reload today's puzzle (used for the initial load and for restarting
+  // after a win — there's only one image per day).
+  function loadDailyPuzzle() {
+    if (dailyPuzzlePath) {
+      loadImage(dailyPuzzlePath);
+    }
   }
 
-  // Initialize points display
-  updatePointsDisplay();
-
-  // Fetch puzzles from server and initialize
+  // Fetch today's puzzle from the server and initialize
   async function initGame() {
     try {
-      const listResponse = await fetch('/api/puzzles');
-      defaultPuzzles = await listResponse.json();
-
-      if (defaultPuzzles.length === 0) {
-        console.error('No puzzles available');
+      const res = await fetch('/api/daily-puzzle');
+      if (!res.ok) {
+        console.error('No daily puzzle available');
         return;
       }
-
-      // Check for shared puzzle URL parameter
-      const urlParams = new URLSearchParams(window.location.search);
-      const sharedPuzzle = urlParams.get("puzzle");
-      if (sharedPuzzle !== null) {
-        const index = parseInt(sharedPuzzle);
-        if (index >= 0 && index < defaultPuzzles.length) {
-          loadPuzzle(index);
-        } else {
-          loadNextPuzzle();
-        }
-      } else {
-        loadNextPuzzle();
-      }
+      const daily = await res.json();
+      dailyPuzzlePath = daily.path;
+      loadDailyPuzzle();
     } catch (err) {
-      console.error('Failed to fetch puzzles:', err);
+      console.error('Failed to fetch daily puzzle:', err);
     }
-  }
-
-  // Pick a random unsolved puzzle client-side
-  function loadNextPuzzle() {
-    const solvedPaths = getSolvedPuzzles();
-
-    // Build candidates: unsolved puzzles, excluding current
-    let candidates = [];
-    for (let i = 0; i < defaultPuzzles.length; i++) {
-      if (i !== lastPuzzleIndex && !solvedPaths.includes(defaultPuzzles[i])) {
-        candidates.push(i);
-      }
-    }
-
-    // If all solved, reset and pick from all (excluding current)
-    if (candidates.length === 0) {
-      localStorage.setItem("solvedPuzzles", JSON.stringify([]));
-      for (let i = 0; i < defaultPuzzles.length; i++) {
-        if (i !== lastPuzzleIndex) candidates.push(i);
-      }
-    }
-
-    // Fallback: if still empty (only one puzzle exists), use current
-    if (candidates.length === 0) {
-      candidates.push(lastPuzzleIndex >= 0 ? lastPuzzleIndex : 0);
-    }
-
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
-    loadPuzzle(pick);
   }
 
   // Recalculate board on window resize (e.g. iPad rotation)
