@@ -13,8 +13,9 @@ app.use(express.static(__dirname));
 const PUZZLES_DIR = process.env.PUZZLES_DIR || path.join(__dirname, 'puzzles');
 app.use('/puzzles', express.static(PUZZLES_DIR));
 
-// Get puzzles sorted by creation time
-function getPuzzlesSortedByTime() {
+// Get puzzles sorted by filename — puzzle images are named numerically
+// (1.jpg, 2.jpg, ...), so this sorts by that numeric value.
+function getPuzzlesSortedByName() {
   const puzzlesDir = PUZZLES_DIR;
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 
@@ -25,16 +26,8 @@ function getPuzzlesSortedByTime() {
         const ext = path.extname(file).toLowerCase();
         return imageExtensions.includes(ext);
       })
-      .map(file => {
-        const filePath = path.join(puzzlesDir, file);
-        const stats = fs.statSync(filePath);
-        return {
-          path: `puzzles/${file}`,
-          created: stats.birthtime.getTime()
-        };
-      })
-      .sort((a, b) => a.created - b.created)
-      .map(p => p.path);
+      .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+      .map(file => `puzzles/${file}`);
 
     return puzzles;
   } catch (err) {
@@ -48,7 +41,7 @@ function getPuzzlesSortedByTime() {
 // a sequential day count) keeps the rotation from being trivially
 // predictable while still being stable for the whole day.
 function getDailyPuzzle() {
-  const puzzles = getPuzzlesSortedByTime();
+  const puzzles = getPuzzlesSortedByName();
   if (puzzles.length === 0) return null;
 
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
@@ -68,6 +61,26 @@ app.get('/api/daily-puzzle', (req, res) => {
     return res.status(404).json({ error: 'No puzzles available' });
   }
   res.json(daily);
+});
+
+// API endpoint to grant a purchased pack: returns `count` puzzle paths
+// starting at index `start` (inclusive) in filename order, so clients can
+// page through the catalog without overlap.
+app.get('/api/more-puzzles', (req, res) => {
+  // GET + no custom request headers keeps this a CORS "simple request" —
+  // like /api/daily-puzzle, avoids needing to handle an OPTIONS preflight.
+  res.header('Access-Control-Allow-Origin', '*');
+  const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
+  if (!deviceId) {
+    return res.status(400).json({ error: 'deviceId is required' });
+  }
+  const start = Math.max(parseInt(req.query.start, 10) || 0, 0);
+  const count = Math.min(Math.max(parseInt(req.query.count, 10) || 30, 1), 100);
+
+  console.log(`more-puzzles: deviceId=${deviceId} start=${start} count=${count}`);
+
+  const puzzles = getPuzzlesSortedByName();
+  res.json({ puzzles: puzzles.slice(start, start + count) });
 });
 
 // Upload endpoint — PUT /admin/puzzles/:filename
