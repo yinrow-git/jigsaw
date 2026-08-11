@@ -11,6 +11,7 @@ app.use(express.static(__dirname));
 
 // Puzzles directory — can be overridden by env var to point at a mounted volume
 const PUZZLES_DIR = process.env.PUZZLES_DIR || path.join(__dirname, 'puzzles');
+const PUZZLES_PAGE_SIZE = 30;
 app.use('/puzzles', express.static(PUZZLES_DIR));
 
 // Get puzzles sorted by filename — puzzle images are named numerically
@@ -81,6 +82,19 @@ app.get('/api/more-puzzles', (req, res) => {
 
   const puzzles = getPuzzlesSortedByName();
   res.json({ puzzles: puzzles.slice(start, start + count) });
+});
+
+// API endpoint to check whether another page of puzzles exists past `start`
+app.get('/api/has-more-puzzles', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
+  if (!deviceId) {
+    return res.status(400).json({ error: 'deviceId is required' });
+  }
+  const start = Math.max(parseInt(req.query.start, 10) || 0, 0);
+
+  const total = getPuzzlesSortedByName().length;
+  res.json({ hasMore: start + PUZZLES_PAGE_SIZE <= total ? 'TRUE' : 'FALSE' });
 });
 
 // Upload endpoint — PUT /admin/puzzles/:filename
