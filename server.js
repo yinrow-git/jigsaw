@@ -109,9 +109,16 @@ app.get('/api/daily-puzzle', (req, res) => {
   res.json(daily);
 });
 
-// API endpoint to grant a purchased pack: returns `count` puzzle paths
-// starting at index `start` (inclusive) in filename order, so clients can
-// page through the catalog without overlap.
+// Extracts the leading number embedded in a puzzle's filename (e.g.
+// "puzzles/030.jpg" -> 30). Pagination is keyed off this number rather than
+// array position, since puzzle filenames aren't guaranteed to start at 0/1.
+function getPuzzleNumber(puzzlePath) {
+  return parseInt(path.basename(puzzlePath), 10);
+}
+
+// API endpoint to grant a purchased pack: returns puzzle paths whose
+// filename number falls in [start, start + count), so clients can page
+// through the catalog by requesting fixed-size number ranges.
 app.get('/api/more-puzzles', (req, res) => {
   // GET + no custom request headers keeps this a CORS "simple request" —
   // like /api/daily-puzzle, avoids needing to handle an OPTIONS preflight.
@@ -126,10 +133,14 @@ app.get('/api/more-puzzles', (req, res) => {
   console.log(`more-puzzles: deviceId=${deviceId} start=${start} count=${count}`);
 
   const puzzles = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles');
-  res.json({ puzzles: puzzles.slice(start, start + count) });
+  const inRange = puzzles.filter(p => {
+    const num = getPuzzleNumber(p);
+    return num >= start && num < start + count;
+  });
+  res.json({ puzzles: inRange });
 });
 
-// API endpoint to check whether another page of puzzles exists past `start`
+// API endpoint to check whether a puzzle numbered >= start + page size exists
 app.get('/api/has-more-puzzles', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
@@ -140,8 +151,9 @@ app.get('/api/has-more-puzzles', (req, res) => {
 
   console.log(`has-more-puzzles: deviceId=${deviceId} start=${start}`);
 
-  const total = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles').length;
-  res.json({ hasMore: start + PUZZLES_PAGE_SIZE <= total ? 'TRUE' : 'FALSE' });
+  const puzzles = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles');
+  const hasMore = puzzles.some(p => getPuzzleNumber(p) >= start + PUZZLES_PAGE_SIZE);
+  res.json({ hasMore: hasMore ? 'TRUE' : 'FALSE' });
 });
 
 // Upload endpoint — PUT /admin/puzzles/:filename
