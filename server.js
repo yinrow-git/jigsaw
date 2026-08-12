@@ -182,6 +182,18 @@ app.delete('/admin/puzzles/:filename', (req, res) => {
   }
 });
 
+// List endpoint — GET /admin/puzzles
+// Protected by UPLOAD_SECRET env var; used by delete-remote-puzzles.sh to
+// find remote files that no longer exist locally. Not public, since it's
+// only needed by admin tooling.
+app.get('/admin/puzzles', (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json(getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles'));
+});
+
 // Upload endpoint — PUT /admin/daily-puzzles/:filename
 // Protected by UPLOAD_SECRET env var
 app.put('/admin/daily-puzzles/:filename', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
@@ -218,6 +230,16 @@ app.delete('/admin/daily-puzzles/:filename', (req, res) => {
     }
     res.status(500).json({ error: err.message });
   }
+});
+
+// List endpoint — GET /admin/daily-puzzles
+// Protected by UPLOAD_SECRET env var; used by delete-remote-puzzles.sh.
+app.get('/admin/daily-puzzles', (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json(getPuzzlesSortedByName(DAILY_PUZZLES_DIR, 'daily_puzzles'));
 });
 
 app.listen(PORT, () => {

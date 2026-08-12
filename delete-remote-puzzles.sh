@@ -1,5 +1,6 @@
 #!/bin/bash
-# Delete puzzles from the Railway deployment that no longer exist locally.
+# Delete puzzles from the Railway deployment that no longer exist locally,
+# for both ./puzzles and ./daily_puzzles.
 # Usage: ./delete-remote-puzzles.sh
 #
 # Required env vars (or edit defaults below):
@@ -15,49 +16,58 @@ if [ -z "$RAILWAY_URL" ] || [ -z "$UPLOAD_SECRET" ]; then
   exit 1
 fi
 
-PUZZLES_DIR="./puzzles"
-DELETE=0
-SKIP=0
-FAIL=0
+TOTAL_DELETE=0
+TOTAL_SKIP=0
+TOTAL_FAIL=0
 
-echo "Fetching remote puzzle list from $RAILWAY_URL/api/puzzles ..."
-remote_json=$(curl -sf "$RAILWAY_URL/api/puzzles")
-if [ $? -ne 0 ]; then
-  echo "Failed to fetch remote puzzle list."
-  exit 1
-fi
+# Deletes remote files under $2 (admin endpoint path, e.g. admin/puzzles)
+# that aren't present in $1 (local dir).
+delete_missing() {
+  local dir="$1"
+  local admin_path="$2"
 
-# Extract filenames from paths like "puzzles/1.jpg"
-remote_files=$(echo "$remote_json" | python3 -c "
+  echo "Fetching remote list from $RAILWAY_URL/$admin_path ..."
+  remote_json=$(curl -sf -H "x-upload-secret: $UPLOAD_SECRET" "$RAILWAY_URL/$admin_path")
+  if [ $? -ne 0 ]; then
+    echo "Failed to fetch remote list from $admin_path."
+    TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    return
+  fi
+
+  # Extract filenames from paths like "puzzles/1.jpg" or "daily_puzzles/d001.jpeg"
+  remote_files=$(echo "$remote_json" | python3 -c "
 import json, sys
 puzzles = json.load(sys.stdin)
 for p in puzzles:
     print(p.split('/')[-1])
 ")
 
-echo ""
-while IFS= read -r filename; do
-  [ -z "$filename" ] && continue
-  local_path="$PUZZLES_DIR/$filename"
-  if [ -f "$local_path" ]; then
-    SKIP=$((SKIP + 1))
-    continue
-  fi
+  while IFS= read -r filename; do
+    [ -z "$filename" ] && continue
+    local_path="$dir/$filename"
+    if [ -f "$local_path" ]; then
+      TOTAL_SKIP=$((TOTAL_SKIP + 1))
+      continue
+    fi
 
-  echo -n "Deleting $filename (not in local puzzles/) ... "
-  encoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$filename")
-  response=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X DELETE "$RAILWAY_URL/admin/puzzles/$encoded" \
-    -H "x-upload-secret: $UPLOAD_SECRET")
+    echo -n "Deleting $filename (not in local $dir/) ... "
+    encoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$filename")
+    response=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X DELETE "$RAILWAY_URL/$admin_path/$encoded" \
+      -H "x-upload-secret: $UPLOAD_SECRET")
 
-  if [ "$response" = "200" ]; then
-    echo "OK"
-    DELETE=$((DELETE + 1))
-  else
-    echo "FAILED (HTTP $response)"
-    FAIL=$((FAIL + 1))
-  fi
-done <<< "$remote_files"
+    if [ "$response" = "200" ]; then
+      echo "OK"
+      TOTAL_DELETE=$((TOTAL_DELETE + 1))
+    else
+      echo "FAILED (HTTP $response)"
+      TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+  done <<< "$remote_files"
+  echo ""
+}
 
-echo ""
-echo "Done: $DELETE deleted, $SKIP kept (exist locally), $FAIL failed."
+delete_missing "./puzzles" "admin/puzzles"
+delete_missing "./daily_puzzles" "admin/daily-puzzles"
+
+echo "Done: $TOTAL_DELETE deleted, $TOTAL_SKIP kept (exist locally), $TOTAL_FAIL failed."
