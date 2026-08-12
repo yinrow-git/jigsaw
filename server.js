@@ -182,6 +182,44 @@ app.delete('/admin/puzzles/:filename', (req, res) => {
   }
 });
 
+// Upload endpoint — PUT /admin/daily-puzzles/:filename
+// Protected by UPLOAD_SECRET env var
+app.put('/admin/daily-puzzles/:filename', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const filename = path.basename(req.params.filename);
+  const dest = path.join(DAILY_PUZZLES_DIR, filename);
+  try {
+    fs.mkdirSync(DAILY_PUZZLES_DIR, { recursive: true });
+    fs.writeFileSync(dest, req.body);
+    res.json({ ok: true, file: filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete endpoint — DELETE /admin/daily-puzzles/:filename
+// Protected by UPLOAD_SECRET env var
+app.delete('/admin/daily-puzzles/:filename', (req, res) => {
+  const secret = process.env.UPLOAD_SECRET;
+  if (!secret || req.headers['x-upload-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const filename = path.basename(req.params.filename);
+  const dest = path.join(DAILY_PUZZLES_DIR, filename);
+  try {
+    fs.unlinkSync(dest);
+    res.json({ ok: true, file: filename });
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Puzzle server running at http://localhost:${PORT}`);
 });
