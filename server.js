@@ -93,6 +93,8 @@ app.get('/api/has-more-puzzles', (req, res) => {
   }
   const start = Math.max(parseInt(req.query.start, 10) || 0, 0);
 
+  console.log(`has-more-puzzles: deviceId=${deviceId} start=${start}`);
+
   const total = getPuzzlesSortedByName().length;
   res.json({ hasMore: start + PUZZLES_PAGE_SIZE <= total ? 'TRUE' : 'FALSE' });
 });
