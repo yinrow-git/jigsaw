@@ -1,7 +1,6 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,42 +13,88 @@ const PUZZLES_DIR = process.env.PUZZLES_DIR || path.join(__dirname, 'puzzles');
 const PUZZLES_PAGE_SIZE = 30;
 app.use('/puzzles', express.static(PUZZLES_DIR));
 
-// Get puzzles sorted by filename — puzzle images are named numerically
-// (1.jpg, 2.jpg, ...), so this sorts by that numeric value.
-function getPuzzlesSortedByName() {
-  const puzzlesDir = PUZZLES_DIR;
+// Daily puzzles directory — separate mounted volume, populated directly on
+// Railway rather than via git/upload-puzzles.sh.
+const DAILY_PUZZLES_DIR = process.env.DAILY_PUZZLES_DIR || path.join(__dirname, 'daily_puzzles');
+app.use('/daily_puzzles', express.static(DAILY_PUZZLES_DIR));
+
+// Get image files in `dir` sorted by filename — puzzle images are named
+// with embedded numbers (1.jpg, 2.jpg, ... or d01.jpeg, d02.jpeg, ...), so
+// this sorts by that numeric value rather than lexicographically.
+// Returned paths are prefixed with `routePrefix` to match the static mount.
+function getPuzzlesSortedByName(dir, routePrefix) {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 
   try {
-    const files = fs.readdirSync(puzzlesDir);
+    const files = fs.readdirSync(dir);
     const puzzles = files
       .filter(file => {
         const ext = path.extname(file).toLowerCase();
         return imageExtensions.includes(ext);
       })
-      .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-      .map(file => `puzzles/${file}`);
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map(file => `${routePrefix}/${file}`);
 
     return puzzles;
   } catch (err) {
-    console.error('Error reading puzzles:', err);
+    console.error(`Error reading puzzles from ${dir}:`, err);
     return [];
   }
 }
 
-// Deterministically pick today's puzzle: same image for everyone on a
-// given UTC day, changes the next day. Hashing the date (rather than e.g.
-// a sequential day count) keeps the rotation from being trivially
-// predictable while still being stable for the whole day.
+// Tracks which daily_puzzles/ filenames have already been served, so a
+// puzzle never repeats even if it's never manually deleted. Stored on the
+// same volume as the images so it survives restarts/redeploys.
+const DAILY_SERVED_STATE_FILE = path.join(DAILY_PUZZLES_DIR, '.daily-served.json');
+
+function loadDailyServedState() {
+  try {
+    return JSON.parse(fs.readFileSync(DAILY_SERVED_STATE_FILE, 'utf8'));
+  } catch (err) {
+    return { servedFiles: [], lastPickedFile: null, lastServedDate: null };
+  }
+}
+
+function saveDailyServedState(state) {
+  try {
+    fs.writeFileSync(DAILY_SERVED_STATE_FILE, JSON.stringify(state));
+  } catch (err) {
+    console.error('Error saving daily-served state:', err);
+  }
+}
+
+// Today's puzzle is the lowest-numbered file in daily_puzzles/ that hasn't
+// been served on a previous day, in filename order (d01, d02, ...). The
+// pick stays stable for the whole UTC day (repeat calls return the same
+// puzzle); once the day rolls over — or the current pick disappears
+// because it was manually deleted — it advances to the next unserved file.
+// Appending new images with higher numbers extends the queue; deleting
+// served ones is optional cleanup, not required for correctness.
 function getDailyPuzzle() {
-  const puzzles = getPuzzlesSortedByName();
-  if (puzzles.length === 0) return null;
-
+  const puzzles = getPuzzlesSortedByName(DAILY_PUZZLES_DIR, 'daily_puzzles');
+  const filenames = puzzles.map(p => path.basename(p));
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-  const hash = crypto.createHash('sha256').update(date).digest();
-  const index = hash.readUInt32BE(0) % puzzles.length;
 
-  return { path: puzzles[index], date, index };
+  const state = loadDailyServedState();
+
+  if (state.lastServedDate === date) {
+    const index = filenames.indexOf(state.lastPickedFile);
+    if (index !== -1) {
+      return { path: `daily_puzzles/${state.lastPickedFile}`, date, index };
+    }
+  }
+
+  const servedFiles = new Set(state.servedFiles);
+  const index = filenames.findIndex(f => !servedFiles.has(f));
+  if (index === -1) return null;
+
+  const picked = filenames[index];
+  state.servedFiles.push(picked);
+  state.lastPickedFile = picked;
+  state.lastServedDate = date;
+  saveDailyServedState(state);
+
+  return { path: `daily_puzzles/${picked}`, date, index };
 }
 
 // API endpoint to get today's puzzle image
@@ -80,7 +125,7 @@ app.get('/api/more-puzzles', (req, res) => {
 
   console.log(`more-puzzles: deviceId=${deviceId} start=${start} count=${count}`);
 
-  const puzzles = getPuzzlesSortedByName();
+  const puzzles = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles');
   res.json({ puzzles: puzzles.slice(start, start + count) });
 });
 
@@ -95,7 +140,7 @@ app.get('/api/has-more-puzzles', (req, res) => {
 
   console.log(`has-more-puzzles: deviceId=${deviceId} start=${start}`);
 
-  const total = getPuzzlesSortedByName().length;
+  const total = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles').length;
   res.json({ hasMore: start + PUZZLES_PAGE_SIZE <= total ? 'TRUE' : 'FALSE' });
 });
 
