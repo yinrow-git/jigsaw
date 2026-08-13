@@ -102,6 +102,8 @@ app.get('/api/daily-puzzle', (req, res) => {
   // The app's WKWebView loads its page from a file:// origin, so this needs
   // an explicit CORS header or the fetch() response gets blocked client-side.
   res.header('Access-Control-Allow-Origin', '*');
+  const source = typeof req.query.source === 'string' ? req.query.source : 'WEB';
+  console.log(`daily-puzzle: requested source=${source}`);
   const daily = getDailyPuzzle();
   if (!daily) {
     return res.status(404).json({ error: 'No puzzles available' });
