@@ -123,14 +123,10 @@ app.get('/api/more-puzzles', (req, res) => {
   // GET + no custom request headers keeps this a CORS "simple request" —
   // like /api/daily-puzzle, avoids needing to handle an OPTIONS preflight.
   res.header('Access-Control-Allow-Origin', '*');
-  const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
-  if (!deviceId) {
-    return res.status(400).json({ error: 'deviceId is required' });
-  }
   const start = Math.max(parseInt(req.query.start, 10) || 0, 0);
   const count = Math.min(Math.max(parseInt(req.query.count, 10) || 30, 1), 100);
 
-  console.log(`more-puzzles: deviceId=${deviceId} start=${start} count=${count}`);
+  console.log(`more-puzzles: start=${start} count=${count}`);
 
   const puzzles = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles');
   const inRange = puzzles.filter(p => {
@@ -143,13 +139,9 @@ app.get('/api/more-puzzles', (req, res) => {
 // API endpoint to check whether a puzzle numbered >= start + page size exists
 app.get('/api/has-more-puzzles', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
-  const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
-  if (!deviceId) {
-    return res.status(400).json({ error: 'deviceId is required' });
-  }
   const start = Math.max(parseInt(req.query.start, 10) || 0, 0);
 
-  console.log(`has-more-puzzles: deviceId=${deviceId} start=${start}`);
+  console.log(`has-more-puzzles: start=${start}`);
 
   const puzzles = getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles');
   const hasMore = puzzles.some(p => getPuzzleNumber(p) >= start + PUZZLES_PAGE_SIZE);
