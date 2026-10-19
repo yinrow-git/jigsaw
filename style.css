@@ -21,6 +21,87 @@ body {
   display: none !important;
 }
 
+/* Gallery Screen (the site's home/landing screen) */
+#gallery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.home-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 18px 20px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  box-shadow: 0 4px 14px rgba(93, 83, 74, 0.15);
+}
+
+#lucky-btn {
+  background: #e07a5f;
+  color: #fff;
+}
+
+#lucky-btn:hover:not(:disabled) {
+  background: #c96a52;
+  transform: translateY(-1px);
+}
+
+#lucky-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#gallery-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+}
+
+.gallery-item {
+  position: relative;
+  /* width/height are set in px by layoutGalleryGrid() in puzzle.js */
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: rgba(212, 163, 115, 0.15);
+  transition: border-color 0.2s, transform 0.1s;
+}
+
+.gallery-item:hover {
+  border-color: #d4a373;
+  transform: scale(1.03);
+}
+
+.gallery-item img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Home nav button (in-game) */
+#home-nav-btn {
+  background: #e8ddd4;
+  color: #5d534a;
+}
+
+#home-nav-btn:hover {
+  background: #ddd0c5;
+  transform: translateY(-1px);
+}
+
 /* Game Layout */
 .game-layout {
   display: flex;

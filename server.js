@@ -111,6 +111,12 @@ app.get('/api/daily-puzzle', (req, res) => {
   res.json(daily);
 });
 
+// API endpoint to list every puzzle image, in filename order — used by the
+// website's home gallery.
+app.get('/api/puzzles', (req, res) => {
+  res.json({ puzzles: getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles') });
+});
+
 // Extracts the leading number embedded in a puzzle's filename (e.g.
 // "puzzles/030.jpg" -> 30). Pagination is keyed off this number rather than
 // array position, since puzzle filenames aren't guaranteed to start at 0/1.

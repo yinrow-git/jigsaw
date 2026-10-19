@@ -35,6 +35,12 @@ function initPuzzleApp() {
   const playAgainBtn = document.getElementById("play-again-btn");
   const puzzleTray = document.getElementById("puzzle-tray");
 
+  // Gallery screen (the site's home/landing screen)
+  const gallerySection = document.getElementById("gallery-section");
+  const galleryGrid = document.getElementById("gallery-grid");
+  const luckyBtn = document.getElementById("lucky-btn");
+  const homeNavBtn = document.getElementById("home-nav-btn");
+
   // Tray data: each entry { canvas, pieceIndex, groupId, rowOff, colOff }
   // groupId links grouped pieces, rowOff/colOff are grid offsets from group anchor
   let trayPieces = [];
@@ -671,6 +677,7 @@ function initPuzzleApp() {
   function shufflePieces() {
     puzzleBoard.classList.remove("win");
     winOverlay.classList.add("hidden");
+    clearTimeout(winOverlayTimer);
     solved = false;
     clearTray();
 
@@ -1119,6 +1126,8 @@ function initPuzzleApp() {
     return -1;
   }
 
+  let winOverlayTimer;
+
   function checkWin() {
     if (trayPieces.length > 0) return;
     const cells = getCells();
@@ -1138,7 +1147,7 @@ function initPuzzleApp() {
       createFireworks();
 
       // Delay showing the overlay so user can view the solved image
-      setTimeout(() => {
+      winOverlayTimer = setTimeout(() => {
         winOverlay.classList.remove("hidden");
       }, 1500);
     }
@@ -1149,7 +1158,26 @@ function initPuzzleApp() {
   playAgainBtn.addEventListener("click", (e) => {
     e.preventDefault();
     playClickSound();
-    loadDailyPuzzle();
+    if (currentImg) startGame(currentImg);
+  });
+
+  homeNavBtn.addEventListener("click", () => {
+    playClickSound();
+    location.hash = "";
+  });
+
+  luckyBtn.addEventListener("click", () => {
+    if (allPuzzles.length === 0) return;
+    playClickSound();
+    const pick = allPuzzles[Math.floor(Math.random() * allPuzzles.length)];
+    location.hash = "puzzle=" + encodeURIComponent(pick);
+  });
+
+  galleryGrid.addEventListener("click", (e) => {
+    const item = e.target.closest(".gallery-item");
+    if (!item) return;
+    playClickSound();
+    location.hash = "puzzle=" + encodeURIComponent(item.dataset.path);
   });
 
   // Config panel handlers
@@ -1192,13 +1220,20 @@ function initPuzzleApp() {
     configOverlay.classList.add("hidden");
   });
 
-  // --- Auto-start with today's daily puzzle ---
+  // --- Screens & routing ---
+  // The URL hash picks the screen: "#puzzle=<path>" shows the game for that
+  // image, anything else shows the gallery. Navigating via the hash keeps
+  // the browser's back button working between the two screens.
 
-  let dailyPuzzlePath = null;
+  let allPuzzles = [];
+  let loadingUrl = null;
 
   function loadImage(url) {
+    loadingUrl = url;
     const img = new Image();
     img.onload = () => {
+      // Ignore a slow load that's been superseded by a newer pick
+      if (loadingUrl !== url) return;
       currentImg = img;
       startGame(img);
     };
@@ -1208,35 +1243,85 @@ function initPuzzleApp() {
     img.src = url;
   }
 
-  // Reload today's puzzle (used for the initial load and for restarting
-  // after a win — there's only one image per day).
-  function loadDailyPuzzle() {
-    if (dailyPuzzlePath) {
-      loadImage(dailyPuzzlePath);
+  function showScreen(name) {
+    gallerySection.classList.toggle("hidden", name !== "gallery");
+    gameSection.classList.toggle("hidden", name !== "game");
+    if (name === "gallery") {
+      loadingUrl = null;
+      layoutGalleryGrid();
     }
   }
 
-  // Fetch today's puzzle from the server and initialize
-  async function initGame() {
-    try {
-      const res = await fetch('/api/daily-puzzle');
-      if (!res.ok) {
-        console.error('No daily puzzle available');
-        return;
-      }
-      const daily = await res.json();
-      dailyPuzzlePath = daily.path;
-      loadDailyPuzzle();
-    } catch (err) {
-      console.error('Failed to fetch daily puzzle:', err);
+  function route() {
+    const match = location.hash.match(/^#puzzle=(.+)$/);
+    if (match) {
+      showScreen("game");
+      loadImage(decodeURIComponent(match[1]));
+    } else {
+      showScreen("gallery");
     }
   }
+
+  function renderGalleryGrid() {
+    galleryGrid.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    allPuzzles.forEach((path) => {
+      const item = document.createElement("div");
+      item.className = "gallery-item";
+      item.dataset.path = path;
+
+      const img = document.createElement("img");
+      img.src = path;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.alt = "";
+      item.appendChild(img);
+
+      frag.appendChild(item);
+    });
+    galleryGrid.appendChild(frag);
+    layoutGalleryGrid();
+  }
+
+  // Sets each tile's width/height directly in px from the grid's actual
+  // content width, same approach as the mobile app's gallery.
+  const GALLERY_GAP = 6;
+  const GALLERY_MIN_TILE = 120;
+
+  function layoutGalleryGrid() {
+    const containerWidth = galleryGrid.clientWidth;
+    if (containerWidth <= 0) return;
+    const cols = Math.max(1, Math.floor((containerWidth + GALLERY_GAP) / (GALLERY_MIN_TILE + GALLERY_GAP)));
+    const tileSize = Math.floor((containerWidth - GALLERY_GAP * (cols - 1)) / cols);
+    galleryGrid.querySelectorAll(".gallery-item").forEach((item) => {
+      item.style.width = tileSize + "px";
+      item.style.height = tileSize + "px";
+    });
+  }
+
+  async function initGallery() {
+    try {
+      const res = await fetch('/api/puzzles');
+      const data = await res.json();
+      allPuzzles = data.puzzles;
+    } catch (err) {
+      console.error('Failed to fetch puzzle list:', err);
+    }
+    luckyBtn.disabled = allPuzzles.length === 0;
+    renderGalleryGrid();
+  }
+
+  window.addEventListener("hashchange", route);
 
   // Recalculate board on window resize (e.g. iPad rotation)
   let resizeTimer;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
+      if (!gallerySection.classList.contains("hidden")) {
+        layoutGalleryGrid();
+        return;
+      }
       if (currentImg && !solved) {
         // Abort any in-progress drag so pieces are back on the board before we rebuild
         abortDrag();
@@ -1294,7 +1379,8 @@ function initPuzzleApp() {
     }, 250);
   });
 
-  initGame();
+  route();
+  initGallery();
 }
 
 if (typeof document !== "undefined") {
