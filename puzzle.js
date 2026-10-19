@@ -32,7 +32,7 @@ function initPuzzleApp() {
   const gameSection = document.getElementById("game-section");
   const puzzleBoard = document.getElementById("puzzle-board");
   const winOverlay = document.getElementById("win-overlay");
-  const playAgainBtn = document.getElementById("play-again-btn");
+  const nextPuzzleBtn = document.getElementById("next-puzzle-btn");
   const puzzleTray = document.getElementById("puzzle-tray");
 
   // Gallery screen (the site's home/landing screen)
@@ -1142,6 +1142,7 @@ function initPuzzleApp() {
 
     if (allCorrect) {
       solved = true;
+      markPuzzleSolved(currentPuzzlePath);
       puzzleBoard.classList.add("win");
       playWinSound();
       createFireworks();
@@ -1155,10 +1156,10 @@ function initPuzzleApp() {
 
   // --- Controls ---
 
-  playAgainBtn.addEventListener("click", (e) => {
+  nextPuzzleBtn.addEventListener("click", (e) => {
     e.preventDefault();
     playClickSound();
-    if (currentImg) startGame(currentImg);
+    openNextPuzzle();
   });
 
   homeNavBtn.addEventListener("click", () => {
@@ -1167,10 +1168,8 @@ function initPuzzleApp() {
   });
 
   luckyBtn.addEventListener("click", () => {
-    if (allPuzzles.length === 0) return;
     playClickSound();
-    const pick = allPuzzles[Math.floor(Math.random() * allPuzzles.length)];
-    location.hash = "puzzle=" + encodeURIComponent(pick);
+    openNextPuzzle();
   });
 
   galleryGrid.addEventListener("click", (e) => {
@@ -1227,6 +1226,62 @@ function initPuzzleApp() {
 
   let allPuzzles = [];
   let loadingUrl = null;
+  let currentPuzzlePath = null;
+
+  // --- Puzzle selection ---
+  // Same strategy as the mobile app: pick at random from puzzles not yet
+  // solved on this device (and never the current one). Once everything has
+  // been solved, the solved list resets and the cycle starts over.
+
+  function getSolvedPuzzles() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("solvedPuzzles"));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function setSolvedPuzzles(paths) {
+    try {
+      localStorage.setItem("solvedPuzzles", JSON.stringify(paths));
+    } catch (err) {
+      // Storage unavailable (e.g. private mode) — selection still works,
+      // it just can't remember solved puzzles.
+    }
+  }
+
+  function markPuzzleSolved(path) {
+    if (!path) return;
+    const solvedPaths = getSolvedPuzzles();
+    if (!solvedPaths.includes(path)) {
+      solvedPaths.push(path);
+      setSolvedPuzzles(solvedPaths);
+    }
+  }
+
+  function pickNextPuzzle() {
+    const solvedPaths = getSolvedPuzzles();
+    const others = allPuzzles.filter(p => p !== currentPuzzlePath);
+    let candidates = others.filter(p => !solvedPaths.includes(p));
+
+    // All solved: reset and pick from everything except the current one
+    if (candidates.length === 0) {
+      setSolvedPuzzles([]);
+      candidates = others;
+    }
+
+    // Only one puzzle exists
+    if (candidates.length === 0) candidates = allPuzzles;
+    if (candidates.length === 0) return null;
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function openNextPuzzle() {
+    const pick = pickNextPuzzle();
+    location.hash = pick ? "puzzle=" + encodeURIComponent(pick) : "";
+  }
 
   function loadImage(url) {
     loadingUrl = url;
@@ -1255,8 +1310,9 @@ function initPuzzleApp() {
   function route() {
     const match = location.hash.match(/^#puzzle=(.+)$/);
     if (match) {
+      currentPuzzlePath = decodeURIComponent(match[1]);
       showScreen("game");
-      loadImage(decodeURIComponent(match[1]));
+      loadImage(currentPuzzlePath);
     } else {
       showScreen("gallery");
     }

@@ -405,18 +405,26 @@ body {
   animation: celebrateText 1s ease-in-out;
 }
 
-#play-again-btn {
-  display: inline-block;
+#next-puzzle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
   color: #fff;
-  font-size: 1.1rem;
-  text-decoration: none;
-  padding: 10px 24px;
+  border: none;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  cursor: pointer;
   transition: background 0.2s, transform 0.1s;
 }
 
-#play-again-btn:hover {
+#next-puzzle-btn svg {
+  width: 36px;
+  height: 36px;
+}
+
+#next-puzzle-btn:hover {
   background: rgba(255, 255, 255, 0.3);
   transform: scale(1.05);
 }
