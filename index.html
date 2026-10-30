@@ -36,6 +36,15 @@
       </div>
     </div>
 
+    <div id="delete-overlay" class="hidden">
+      <div id="delete-panel">
+        <h3>Delete This Puzzle?</h3>
+        <p id="delete-message"></p>
+        <button id="delete-confirm-btn">Delete</button>
+        <button id="delete-cancel-btn">Cancel</button>
+      </div>
+    </div>
+
     <div id="game-section" class="hidden">
       <div class="game-layout">
         <div class="board-and-tray">
@@ -57,6 +66,7 @@
             <div class="controls">
               <button id="home-nav-btn" aria-label="Home">🏠</button>
               <button id="config-btn">⚙️</button>
+              <button id="delete-puzzle-btn" class="hidden" aria-label="Delete puzzle" title="Delete puzzle">🗑️</button>
             </div>
           </div>
         </div>

@@ -41,6 +41,14 @@ function initPuzzleApp() {
   const luckyBtn = document.getElementById("lucky-btn");
   const homeNavBtn = document.getElementById("home-nav-btn");
 
+  // Delete-puzzle controls — the button stays hidden unless the server
+  // reports this page is being run locally (see /api/local-admin).
+  const deletePuzzleBtn = document.getElementById("delete-puzzle-btn");
+  const deleteOverlay = document.getElementById("delete-overlay");
+  const deleteMessage = document.getElementById("delete-message");
+  const deleteConfirmBtn = document.getElementById("delete-confirm-btn");
+  const deleteCancelBtn = document.getElementById("delete-cancel-btn");
+
   // Tray data: each entry { canvas, pieceIndex, groupId, rowOff, colOff }
   // groupId links grouped pieces, rowOff/colOff are grid offsets from group anchor
   let trayPieces = [];
@@ -1283,6 +1291,76 @@ function initPuzzleApp() {
     location.hash = pick ? "puzzle=" + encodeURIComponent(pick) : "";
   }
 
+  // --- Delete puzzle (local only) ---
+
+  function openDeleteOverlay() {
+    deleteMessage.textContent = "This permanently deletes the puzzle and it will no longer be served.";
+    deleteConfirmBtn.classList.remove("hidden");
+    deleteConfirmBtn.disabled = false;
+    deleteCancelBtn.textContent = "Cancel";
+    deleteOverlay.classList.remove("hidden");
+  }
+
+  // Leaves the overlay open with just an OK button, to report a problem.
+  function showDeleteNotice(message) {
+    deleteMessage.textContent = message;
+    deleteConfirmBtn.classList.add("hidden");
+    deleteCancelBtn.textContent = "OK";
+  }
+
+  async function deleteCurrentPuzzle() {
+    const path = currentPuzzlePath;
+    const filename = path.split("/").pop();
+    deleteConfirmBtn.disabled = true;
+    try {
+      const res = await fetch("/api/local/puzzles/" + encodeURIComponent(filename), { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    } catch (err) {
+      showDeleteNotice(`Couldn't delete ${filename}: ${err.message}`);
+      return;
+    }
+
+    allPuzzles = allPuzzles.filter(p => p !== path);
+    setSolvedPuzzles(getSolvedPuzzles().filter(p => p !== path));
+    luckyBtn.disabled = allPuzzles.length === 0;
+    renderGalleryGrid();
+    openNextPuzzle();
+    deleteOverlay.classList.add("hidden");
+  }
+
+  deletePuzzleBtn.addEventListener("click", () => {
+    if (!currentPuzzlePath) return;
+    playClickSound();
+    openDeleteOverlay();
+  });
+
+  deleteConfirmBtn.addEventListener("click", () => {
+    playClickSound();
+    deleteCurrentPuzzle();
+  });
+
+  deleteCancelBtn.addEventListener("click", () => {
+    playClickSound();
+    deleteOverlay.classList.add("hidden");
+  });
+
+  deleteOverlay.addEventListener("click", (e) => {
+    if (e.target === deleteOverlay) {
+      deleteOverlay.classList.add("hidden");
+    }
+  });
+
+  async function initLocalAdmin() {
+    try {
+      const res = await fetch("/api/local-admin");
+      const data = await res.json();
+      deletePuzzleBtn.classList.toggle("hidden", !data.enabled);
+    } catch (err) {
+      // Not running against this server (or offline) — keep it hidden.
+    }
+  }
+
   function loadImage(url) {
     loadingUrl = url;
     const img = new Image();
@@ -1437,6 +1515,7 @@ function initPuzzleApp() {
 
   route();
   initGallery();
+  initLocalAdmin();
 }
 
 if (typeof document !== "undefined") {

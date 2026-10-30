@@ -230,8 +230,9 @@ body {
   transform: translateY(-1px);
 }
 
-/* Config Overlay */
-#config-overlay {
+/* Config Overlay (also the delete-puzzle confirmation) */
+#config-overlay,
+#delete-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -244,7 +245,8 @@ body {
   z-index: 2000;
 }
 
-#config-panel {
+#config-panel,
+#delete-panel {
   background: #fef9f3;
   border: 3px solid #d4a373;
   border-radius: 16px;
@@ -253,7 +255,8 @@ body {
   box-shadow: 0 8px 32px rgba(93, 83, 74, 0.3);
 }
 
-#config-panel h3 {
+#config-panel h3,
+#delete-panel h3 {
   text-align: center;
   color: #5d534a;
   margin-bottom: 20px;
@@ -316,6 +319,69 @@ body {
 #config-apply-btn:hover {
   background: #c96a52;
   transform: translateY(-1px);
+}
+
+/* Delete puzzle (only shown when running locally) */
+#delete-puzzle-btn {
+  background: #e8ddd4;
+  color: #5d534a;
+}
+
+#delete-puzzle-btn:hover {
+  background: #ddd0c5;
+  transform: translateY(-1px);
+}
+
+#delete-panel {
+  max-width: 340px;
+  text-align: center;
+}
+
+#delete-message {
+  color: #8a7f74;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  overflow-wrap: anywhere;
+}
+
+#delete-confirm-btn {
+  width: 100%;
+  padding: 12px;
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  margin-bottom: 10px;
+}
+
+#delete-confirm-btn:hover {
+  background: #a93226;
+  transform: translateY(-1px);
+}
+
+#delete-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+#delete-cancel-btn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  color: #8a7f74;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#delete-cancel-btn:hover {
+  color: #5d534a;
 }
 
 /* Puzzle Pieces */

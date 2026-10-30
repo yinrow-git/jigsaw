@@ -117,6 +117,45 @@ app.get('/api/puzzles', (req, res) => {
   res.json({ puzzles: getPuzzlesSortedByName(PUZZLES_DIR, 'puzzles') });
 });
 
+// Local-only puzzle deletion — lets the owner prune puzzles while playing
+// on their own machine (`npm start`, then open localhost). Only a request
+// made directly from this machine to a localhost Host qualifies: Railway's
+// proxy connects from a non-loopback address and adds X-Forwarded-For, and
+// the Host check stops a DNS-rebinding page from posing as localhost.
+function isLocalRequest(req) {
+  const addr = req.socket.remoteAddress;
+  const loopback = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+  const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(req.hostname);
+  return loopback && localHost && !req.headers['x-forwarded-for'];
+}
+
+// Tells the page whether to show its delete-puzzle button.
+app.get('/api/local-admin', (req, res) => {
+  res.json({ enabled: isLocalRequest(req) });
+});
+
+// Permanently deletes a puzzle image from the local PUZZLES_DIR only —
+// Railway is left alone; ./upload-puzzles.sh removes it there on the next
+// sync, since that script deletes remote files missing locally. DELETE
+// (not POST) means another site can't trigger this cross-origin without a
+// CORS preflight, which this route never approves.
+app.delete('/api/local/puzzles/:filename', (req, res) => {
+  if (!isLocalRequest(req)) {
+    return res.status(403).json({ error: 'Only available on localhost' });
+  }
+  const filename = path.basename(req.params.filename);
+  try {
+    fs.unlinkSync(path.join(PUZZLES_DIR, filename));
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    return res.status(500).json({ error: err.message });
+  }
+  console.log(`local delete: removed ${filename}`);
+  res.json({ ok: true, file: filename });
+});
+
 // Extracts the leading number embedded in a puzzle's filename (e.g.
 // "puzzles/030.jpg" -> 30). Pagination is keyed off this number rather than
 // array position, since puzzle filenames aren't guaranteed to start at 0/1.
