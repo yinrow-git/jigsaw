@@ -4,10 +4,39 @@
   box-sizing: border-box;
 }
 
+/* Theme palette. Dark mode is toggled from Settings by putting the "dark"
+   class on <html> (see the inline script in index.html and puzzle.js). */
+:root {
+  --bg-start: #fef9f3;
+  --bg-end: #f0ebe3;
+  --panel-bg: #fef9f3;
+  --surface: #fff;
+  --text: #5d534a;
+  --text-muted: #8a7f74;
+  --control-bg: #e8ddd4;
+  --control-hover: #ddd0c5;
+  --tray-bg: rgba(255, 255, 255, 0.3);
+  --scrim: rgba(93, 83, 74, 0.5);
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg-start: #1f1b18;
+  --bg-end: #2a2521;
+  --panel-bg: #2c2723;
+  --surface: #241f1c;
+  --text: #ece3da;
+  --text-muted: #b1a69b;
+  --control-bg: #3a332e;
+  --control-hover: #463e38;
+  --tray-bg: rgba(255, 255, 255, 0.05);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: linear-gradient(135deg, #fef9f3 0%, #f0ebe3 100%);
-  color: #5d534a;
+  background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+  color: var(--text);
   min-height: 100vh;
 }
 
@@ -93,12 +122,12 @@ body {
 
 /* Home nav button (in-game) */
 #home-nav-btn {
-  background: #e8ddd4;
-  color: #5d534a;
+  background: var(--control-bg);
+  color: var(--text);
 }
 
 #home-nav-btn:hover {
-  background: #ddd0c5;
+  background: var(--control-hover);
   transform: translateY(-1px);
 }
 
@@ -127,7 +156,7 @@ body {
   position: relative;
   border: 2px dashed rgba(212, 163, 115, 0.5);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--tray-bg);
   min-height: 80px;
   width: 100%;
   transition: border-color 0.2s, background 0.2s;
@@ -164,7 +193,7 @@ body {
 
 #puzzle-board {
   display: grid;
-  background: #fff;
+  background: var(--surface);
   border: 4px solid #d4a373;
   border-radius: 12px;
   gap: 0;
@@ -221,12 +250,12 @@ body {
 
 /* Config Button */
 #config-btn {
-  background: #e8ddd4;
-  color: #5d534a;
+  background: var(--control-bg);
+  color: var(--text);
 }
 
 #config-btn:hover {
-  background: #ddd0c5;
+  background: var(--control-hover);
   transform: translateY(-1px);
 }
 
@@ -238,7 +267,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(93, 83, 74, 0.5);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -247,7 +276,7 @@ body {
 
 #config-panel,
 #delete-panel {
-  background: #fef9f3;
+  background: var(--panel-bg);
   border: 3px solid #d4a373;
   border-radius: 16px;
   padding: 24px 32px;
@@ -258,7 +287,7 @@ body {
 #config-panel h3,
 #delete-panel h3 {
   text-align: center;
-  color: #5d534a;
+  color: var(--text);
   margin-bottom: 20px;
   font-size: 1.2rem;
 }
@@ -269,7 +298,7 @@ body {
 
 .config-group label {
   display: block;
-  color: #8a7f74;
+  color: var(--text-muted);
   font-size: 0.9rem;
   margin-bottom: 8px;
 }
@@ -284,10 +313,10 @@ body {
   flex: 1 1 calc(33.333% - 6px);
   min-width: 0;
   padding: 10px 12px;
-  border: 2px solid #e8ddd4;
+  border: 2px solid var(--control-bg);
   border-radius: 8px;
-  background: #fff;
-  color: #5d534a;
+  background: var(--surface);
+  color: var(--text);
   font-size: 1.5rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -301,6 +330,66 @@ body {
   background: #d4a373;
   border-color: #d4a373;
   color: #fff;
+}
+
+/* Dark mode switch */
+.config-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--control-bg);
+  border-radius: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch-track::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+
+.switch input:checked + .switch-track {
+  background: #d4a373;
+}
+
+.switch input:checked + .switch-track::before {
+  transform: translateX(22px);
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid #d4a373;
+  outline-offset: 2px;
 }
 
 #config-apply-btn {
@@ -323,12 +412,12 @@ body {
 
 /* Delete puzzle (only shown when running locally) */
 #delete-puzzle-btn {
-  background: #e8ddd4;
-  color: #5d534a;
+  background: var(--control-bg);
+  color: var(--text);
 }
 
 #delete-puzzle-btn:hover {
-  background: #ddd0c5;
+  background: var(--control-hover);
   transform: translateY(-1px);
 }
 
@@ -338,7 +427,7 @@ body {
 }
 
 #delete-message {
-  color: #8a7f74;
+  color: var(--text-muted);
   font-size: 0.95rem;
   line-height: 1.5;
   margin-bottom: 20px;
@@ -375,13 +464,13 @@ body {
   padding: 8px;
   background: transparent;
   border: none;
-  color: #8a7f74;
+  color: var(--text-muted);
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 #delete-cancel-btn:hover {
-  color: #5d534a;
+  color: var(--text);
 }
 
 /* Puzzle Pieces */
@@ -584,7 +673,7 @@ body {
   text-align: center;
   margin-top: 20px;
   font-size: 0.9rem;
-  color: #8a7f74;
+  color: var(--text-muted);
 }
 
 #app-promo a {

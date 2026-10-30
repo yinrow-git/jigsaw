@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jigsaw Puzzle</title>
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Apply the saved theme before first paint, so dark mode doesn't flash
+    // light on load. puzzle.js owns the toggle itself.
+    try {
+      if (localStorage.getItem("darkMode") === "1") document.documentElement.classList.add("dark");
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <div class="container">
@@ -31,6 +38,13 @@
             <button data-size="8">8️⃣</button>
             <button data-size="9">9️⃣</button>
           </div>
+        </div>
+        <div class="config-toggle-row">
+          <span>Dark Mode</span>
+          <label class="switch">
+            <input type="checkbox" id="dark-mode-toggle" aria-label="Dark mode">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
         </div>
         <button id="config-apply-btn">Apply</button>
       </div>

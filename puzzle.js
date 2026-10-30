@@ -59,6 +59,7 @@ function initPuzzleApp() {
   const configBtn = document.getElementById("config-btn");
   const configApplyBtn = document.getElementById("config-apply-btn");
   const sizeOptions = document.getElementById("size-options");
+  const darkModeToggle = document.getElementById("dark-mode-toggle");
 
   let pieces = []; // { canvas, index }
   let solved = false;
@@ -1205,6 +1206,25 @@ function initPuzzleApp() {
     }
   });
 
+  // Dark mode takes effect as soon as it's toggled (unlike grid size, which
+  // waits for Apply) and is remembered across visits. The inline script in
+  // index.html applies the saved choice before first paint.
+  function applyDarkMode(dark) {
+    document.documentElement.classList.toggle("dark", dark);
+    darkModeToggle.checked = dark;
+  }
+
+  darkModeToggle.addEventListener("change", () => {
+    playClickSound();
+    try {
+      localStorage.setItem("darkMode", darkModeToggle.checked ? "1" : "0");
+    } catch (err) {
+      // Storage unavailable (e.g. private mode) — it still applies, it
+      // just won't be remembered next visit.
+    }
+    applyDarkMode(darkModeToggle.checked);
+  });
+
   configOverlay.addEventListener("click", (e) => {
     if (e.target === configOverlay) {
       configOverlay.classList.add("hidden");
@@ -1513,6 +1533,7 @@ function initPuzzleApp() {
     }, 250);
   });
 
+  applyDarkMode(document.documentElement.classList.contains("dark"));
   route();
   initGallery();
   initLocalAdmin();
